@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+*.egg-info/
+.pytest_cache/
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Models & weights
+*.pt
+*.pth
+*.onnx
+*.ckpt
+*.safetensors
+checkpoints/
+weights/
+
+# Media / data / outputs
+data/
+outputs/
+output/
+tmp/
+*.mp4
+*.mov
+*.avi
+*.mkv
+*.wav
+*.mp3
+
+# Node
+node_modules/
+dist/
+build/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
