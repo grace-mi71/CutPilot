@@ -1,0 +1,71 @@
+[project]
+name = "cutpilot"
+version = "0.1.0"
+description = "Conversational AI Agent for Intent-Based Video Editing"
+requires-python = ">=3.10,<3.11"
+
+dependencies = [
+    # --- web ---
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "python-multipart>=0.0.9",      # video upload
+    "pydantic>=2.9",
+    "pydantic-settings>=2.6",
+
+    # --- vision ---
+    "torch>=2.9",                   # pinned to the CUDA index below
+    "torchvision>=0.26",
+    "ultralytics>=8.3",             # YOLO detection
+    "supervision>=0.25",            # ByteTrack + annotators
+    "opencv-python>=4.10",
+    "numpy>=1.26",
+
+    # --- llm ---
+    "google-genai>=1.0",
+
+    # --- util ---
+    "typer>=0.15",                  # scripts/ CLIs
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.8",
+    "pytest>=8.3",
+]
+
+# ---------------------------------------------------------------------------
+# PyTorch must come from the CUDA index, never PyPI.
+#
+# The default PyPI torch wheel for Windows is CPU-only, and any build older
+# than CUDA 12.8 lacks sm_120 kernels -- on this machine (RTX 5060 Laptop,
+# Blackwell) that fails at runtime with:
+#     no kernel image is available for execution on the device
+#
+# cu130 is used because it has the newest cp310 Windows wheels and the most
+# mature Blackwell kernel coverage. Fallback if anything here breaks: cu128.
+# ---------------------------------------------------------------------------
+[[tool.uv.index]]
+name = "pytorch-cu130"
+url = "https://download.pytorch.org/whl/cu130"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu130" }
+torchvision = { index = "pytorch-cu130" }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["cutpilot"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

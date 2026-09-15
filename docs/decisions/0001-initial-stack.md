@@ -27,6 +27,45 @@
 - 설치 직후 `torch.cuda.get_device_capability()`가 `(12, 0)`인지 검증한다
 - 모든 추론 경로에 `--device cpu` 폴백을 둔다
 
+확정: **cu130 인덱스 + torch 2.14.0 + torchvision 0.29.0** (cp310 win_amd64 휠 존재,
+드라이버 610.62가 CUDA 13 지원). 문제 발생 시 폴백은 cu128 + torch 2.9.1.
+
+### ⚠️ Windows 11 Smart App Control이 PyTorch를 차단한다
+
+세팅 중 실제로 발생한 문제다. 재설치하거나 다른 Windows 머신으로 옮기면 또 만난다.
+
+```
+OSError: [WinError 4551] 애플리케이션 제어 정책에서 이 파일을 차단했습니다.
+Error loading ".venv/lib/site-packages/torch/lib/c10.dll"
+```
+
+Smart App Control(SAC)은 서명되지 않은 DLL 로딩을 막는다. PyTorch의 `c10.dll`은
+서명이 없다.
+
+```powershell
+# 진단
+Get-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\Control\CI\Policy" |
+    Select-Object VerifiedAndReputablePolicyState
+# 0 = Off   1 = Enforced   2 = Evaluation
+```
+
+영향 범위 — **torch 계열만** 막힌다.
+
+| 패키지 | 상태 |
+|---|---|
+| numpy, opencv, fastapi, pydantic | ✅ 정상 |
+| torch, ultralytics | ❌ 차단 |
+
+**CUDA 문제가 아니다.** `c10.dll`은 CPU 빌드에도 포함되므로 CPU 전용 torch로
+바꿔도 동일하게 막힌다. 즉 SAC가 켜져 있으면 로컬에서 YOLO를 아예 못 돌린다.
+
+**해결:** SAC를 끈다 (설정 > 개인 정보 및 보안 > Windows 보안 > 앱 및 브라우저
+컨트롤 > 스마트 앱 컨트롤). ⚠️ **한 번 끄면 Windows 재설치 전까지 다시 켤 수
+없다.** Defender 백신은 계속 동작한다.
+
+대안으로 WSL2(Ubuntu)가 있다 — SAC는 Windows 바이너리에만 적용되고 RTX 5060도
+WSL2 CUDA 패스스루로 잡힌다. 개발 환경을 옮기는 비용 때문에 채택하지 않았다.
+
 ---
 
 ## 2. 학습은 하지 않는다
