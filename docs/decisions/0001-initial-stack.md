@@ -66,6 +66,22 @@ Get-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\Control\CI\Policy" |
 대안으로 WSL2(Ubuntu)가 있다 — SAC는 Windows 바이너리에만 적용되고 RTX 5060도
 WSL2 CUDA 패스스루로 잡힌다. 개발 환경을 옮기는 비용 때문에 채택하지 않았다.
 
+### 검증된 기준 환경 (2026-09-15)
+
+`uv run python scripts/check_env.py` 통과 시점의 상태. 재현이 안 되면 여기와
+비교한다.
+
+```
+torch        2.14.0+cu130      cuda build 13.0
+device       NVIDIA GeForce RTX 5060 Laptop GPU
+capability   sm_120            vram 8.0 GiB
+arch list    sm_75, sm_80, sm_86, sm_90, sm_100, sm_120
+                                              ^^^^^^ 이게 없으면 GPU가 안 잡힌다
+ffmpeg       9.0.1             uv 0.12.13
+opencv 5.0.0 · ultralytics 8.4.152 · supervision 0.30.3
+google-genai 2.23.0 · fastapi 0.141.1 · pydantic 2.13.5
+```
+
 ---
 
 ## 2. 학습은 하지 않는다
