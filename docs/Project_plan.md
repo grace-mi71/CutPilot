@@ -1,4 +1,4 @@
-# EditAgent
+# CutPilot
 ## Conversational AI Agent for Intent-Based Video Editing
 
 **프로젝트 유형:** 미디어 프로젝트 / 졸업작품  
@@ -6,13 +6,21 @@
 **프로젝트 성격:** 서비스 중심 End-to-End AI 프로젝트  
 **핵심 키워드:** Conversational Agent, Multimodal AI, Video Editing, Object Grounding, Tracking, Auto Reframe, Privacy Blur
 
+> **참고**
+> 이 문서는 프로젝트 초안이다. 초안 작성 당시 프로젝트명은 `EditAgent`였고,
+> 레포지토리 이름에 맞춰 `CutPilot`으로 통일했다.
+>
+> 초안 이후 확정·변경된 사항(기술 스택 선택, 타임라인 UX 추가, Edit Plan 스키마의
+> 시간 구간 필드 등)은 [`docs/decisions/`](./decisions/)에 별도로 기록한다.
+> 두 문서가 충돌하면 **decisions 쪽이 최신**이다.
+
 ---
 
 # 1. 프로젝트 개요
 
 ## 1.1 한 문장 요약
 
-**EditAgent는 사용자가 자연어로 영상 편집 의도를 전달하면, AI Agent가 이를 실행 가능한 편집 계획으로 변환하고 사용자와 대화를 통해 수정한 뒤 실제 영상 편집까지 수행하는 대화형 영상 편집 서비스이다.**
+**CutPilot는 사용자가 자연어로 영상 편집 의도를 전달하면, AI Agent가 이를 실행 가능한 편집 계획으로 변환하고 사용자와 대화를 통해 수정한 뒤 실제 영상 편집까지 수행하는 대화형 영상 편집 서비스이다.**
 
 ---
 
@@ -37,7 +45,7 @@
 
 즉 사용자는 **원하는 결과가 아니라 편집 방법 자체를 알아야 한다.**
 
-EditAgent는 이를 다음과 같이 바꾸는 것을 목표로 한다.
+CutPilot는 이를 다음과 같이 바꾸는 것을 목표로 한다.
 
 ```text
 기존 방식
@@ -53,7 +61,7 @@ EditAgent는 이를 다음과 같이 바꾸는 것을 목표로 한다.
 렌더링
 
 
-EditAgent
+CutPilot
 
 사용자 의도
   ↓
@@ -76,7 +84,7 @@ Edit Plan
 
 # 2. 프로젝트 목표
 
-EditAgent의 목표는 범용 영상 편집 프로그램을 만드는 것이 아니다.
+CutPilot의 목표는 범용 영상 편집 프로그램을 만드는 것이 아니다.
 
 3개월이라는 제한된 기간 동안 **시각적으로 명확하고 구현 가능성이 높은 핵심 편집 기능 2개와 대화형 Agent 기능 1개**에 집중한다.
 
@@ -159,7 +167,7 @@ User:
 → blur operation
 ```
 
-EditAgent는 이러한 사용자의 표현을 영상 속 실제 객체와 연결하고 적절한 편집 operation으로 변환한다.
+CutPilot는 이러한 사용자의 표현을 영상 속 실제 객체와 연결하고 적절한 편집 operation으로 변환한다.
 
 ---
 
@@ -580,7 +588,7 @@ Edit Plan은 다음 두 목적을 가진다.
 
 ```text
 ┌───────────────────────────────────────────────┐
-│                 EditAgent                     │
+│                 CutPilot                      │
 ├────────────────────────┬──────────────────────┤
 │                        │                      │
 │                        │   Agent Chat         │
@@ -1012,7 +1020,7 @@ User Command
 
 > 기존 영상 편집 도구에서는 사용자가 어떤 기능을 어디에 적용해야 하는지 직접 알아야 한다.
 >
-> EditAgent는 사용자가 원하는 편집 결과를 자연어로 설명하면, 영상의 시공간적 맥락과 객체를 이해하고 필요한 편집 작업을 계획하여 실행한다.
+> CutPilot는 사용자가 원하는 편집 결과를 자연어로 설명하면, 영상의 시공간적 맥락과 객체를 이해하고 필요한 편집 작업을 계획하여 실행한다.
 >
 > 또한 Agent가 생성한 편집 계획을 사용자가 대화를 통해 수정할 수 있도록 하여, 영상 편집을 도구 중심의 작업에서 의도 중심의 상호작용으로 전환한다.
 
@@ -1020,7 +1028,7 @@ User Command
 
 # 18. 최종 프로젝트 정의
 
-## EditAgent
+## CutPilot
 ### Conversational AI Agent for Intent-Based Video Editing
 
 **핵심 기능**

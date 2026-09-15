@@ -1,4 +1,4 @@
-# Python
+# ---- Python ----
 __pycache__/
 *.py[cod]
 .venv/
@@ -6,39 +6,54 @@ venv/
 env/
 *.egg-info/
 .pytest_cache/
+.ruff_cache/
+.mypy_cache/
 
-# Environment / secrets
+# ---- Secrets ----
 .env
 .env.*
 !.env.example
 
-# Models & weights
+# ---- Model weights ----
 *.pt
 *.pth
 *.onnx
 *.ckpt
 *.safetensors
 checkpoints/
-weights/
+/weights/*
+!/weights/.gitkeep
 
-# Media / data / outputs
-data/
-outputs/
-output/
+# ---- Video / working data ----
+# Directories are kept in git via .gitkeep; their contents are not.
+/data/*
+!/data/.gitkeep
+!/data/raw/
+/data/raw/*
+!/data/raw/.gitkeep
+!/data/samples/
+/data/samples/*
+!/data/samples/.gitkeep
+/outputs/*
+!/outputs/.gitkeep
 tmp/
+
+# Media files anywhere (demo clips, proxies, renders)
 *.mp4
 *.mov
 *.avi
 *.mkv
+*.webm
 *.wav
 *.mp3
 
-# Node
+# ---- Node / frontend ----
 node_modules/
+.next/
 dist/
 build/
 
-# OS / editor
+# ---- OS / editor ----
 .DS_Store
 Thumbs.db
 .idea/

@@ -1,0 +1,21 @@
+# Normalize line endings: LF in the repo, native in the working tree.
+* text=auto
+
+# Always LF — these are read by tooling that dislikes CRLF.
+*.py    text eol=lf
+*.sh    text eol=lf
+*.toml  text eol=lf
+*.yml   text eol=lf
+*.yaml  text eol=lf
+*.json  text eol=lf
+*.md    text eol=lf
+
+# Binary assets — never touch.
+*.mp4   binary
+*.mov   binary
+*.mkv   binary
+*.webm  binary
+*.jpg   binary
+*.png   binary
+*.pt    binary
+*.onnx  binary
