@@ -16,7 +16,9 @@ dependencies = [
     "torch>=2.9",                   # pinned to the CUDA index below
     "torchvision>=0.26",
     "ultralytics>=8.3",             # YOLO detection
-    "supervision>=0.25",            # ByteTrack + annotators
+    "supervision>=0.25",            # annotators for debug views
+    "lap>=0.5.12",                  # tracker association; ultralytics installs it
+                                    # at runtime otherwise, which breaks the lock
     "opencv-python>=4.10",
     "numpy>=1.26",
 
