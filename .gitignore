@@ -58,3 +58,6 @@ build/
 Thumbs.db
 .idea/
 .vscode/
+
+# ---- 과제 제출 문서 (개발과 무관) ----
+docs/proposal.md
