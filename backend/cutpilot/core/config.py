@@ -31,11 +31,33 @@ class Settings(BaseSettings):
 
     # ---- LLM -------------------------------------------------------------
     gemini_api_key: str = ""
-    gemini_model: str = "gemini-2.5-flash"
-    """Pinned deliberately. Bump it as a decision, not as a side effect."""
+    gemini_model: str = "gemini-3.6-flash"
+    """Pinned deliberately. Bump it as a decision, not as a side effect.
+
+    2.5 Flash, the original pin, is closed to accounts that never used it and
+    retired on Cloud on 2026-10-20. 3.8 Flash is newer but its free tier was
+    unusable when probed on 2026-10-23: three of five calls returned 503 and one
+    success took 235s. 3.6 Flash costs the same and answered in under 2s."""
+
+    gemini_fallback_models: list[str] = Field(default_factory=lambda: ["gemini-3.8-flash"])
+    """Tried in order once the primary is exhausted. A demo that dies on one
+    overloaded model is the failure the plan warned about from the start."""
+
+    planner_thinking_level: str = "low"
+    """Intent parsing gains little from long reasoning: an early probe spent 279
+    thinking tokens to emit 59 tokens of plan."""
+
+    grounding_thinking_level: str = "minimal"
+    """Detection wants none. 3.6 accepts "minimal"; 3.8 rejects it with a 400."""
 
     llm_cache_enabled: bool = True
-    llm_timeout_seconds: float = 60.0
+    llm_timeout_seconds: float = 45.0
+    """Per attempt. A 235-second answer is a failure, not a slow success."""
+
+    llm_max_attempts: int = 3
+    """Attempts per model on retryable errors (overload, rate limit, timeout)."""
+
+    llm_seed: int = 7
 
     # ---- Inference -------------------------------------------------------
     device: Literal["auto", "cuda", "cpu"] = "auto"

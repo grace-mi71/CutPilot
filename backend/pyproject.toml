@@ -71,3 +71,6 @@ select = ["E", "F", "I", "UP", "B"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# Project-local temp dir: the system one under AppData was not readable
+# here, which broke every test that takes tmp_path.
+addopts = ["--basetemp=.pytest_tmp"]
