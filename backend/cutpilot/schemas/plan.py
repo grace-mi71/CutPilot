@@ -162,3 +162,8 @@ class OperationDraft(BaseModel):
 
 class EditPlanDraft(BaseModel):
     operations: list[OperationDraft] = Field(default_factory=list)
+
+    clarification: str | None = None
+    """Set when the request cannot be turned into a plan -- too vague, or asks
+    for something out of scope. The agent asks instead of guessing, which is the
+    same rule the confirmation step follows, applied one stage earlier."""

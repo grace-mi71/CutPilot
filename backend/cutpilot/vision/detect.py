@@ -12,6 +12,7 @@ per-frame geometry in TrackBoxes, fetched separately.
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -47,6 +48,33 @@ class TrackingResult:
 
     def by_id(self) -> dict[str, Track]:
         return {t.id: t for t in self.tracks}
+
+    # Analysis runs once per upload and every later turn reuses it, so ids
+    # stay stable across the conversation -- "that person" in turn five has to
+    # be the same track as in turn one.
+
+    def save(self, path: Path) -> Path:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "tracks": [t.model_dump(mode="json") for t in self.tracks],
+            "boxes": {k: v.model_dump(mode="json") for k, v in self.boxes.items()},
+            "frames_processed": self.frames_processed,
+            "detections_total": self.detections_total,
+            "dropped_tracks": self.dropped_tracks,
+        }
+        path.write_text(json.dumps(payload), encoding="utf-8")
+        return path
+
+    @classmethod
+    def load(cls, path: Path) -> TrackingResult:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        return cls(
+            tracks=[Track.model_validate(t) for t in payload["tracks"]],
+            boxes={k: TrackBoxes.model_validate(v) for k, v in payload["boxes"].items()},
+            frames_processed=payload.get("frames_processed", 0),
+            detections_total=payload.get("detections_total", 0),
+            dropped_tracks=payload.get("dropped_tracks", 0),
+        )
 
 
 def segments_from_times(
