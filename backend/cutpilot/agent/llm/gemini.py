@@ -16,11 +16,13 @@ is left on with generate_content.
 
 from __future__ import annotations
 
+import re
 import time
 from collections.abc import Callable, Sequence
 
 from cutpilot.agent.llm.base import (
     LLMBadRequest,
+    LLMQuotaExhausted,
     LLMRequest,
     LLMResponse,
     LLMUnavailable,
@@ -41,6 +43,7 @@ class GeminiProvider:
         max_attempts: int = 3,
         seed: int | None = 7,
         backoff_base: float = 1.5,
+        max_wait_seconds: float = 30.0,
         sleep: Callable[[float], None] = time.sleep,
         client: object | None = None,
     ) -> None:
@@ -51,6 +54,8 @@ class GeminiProvider:
         self.max_attempts = max(1, max_attempts)
         self.seed = seed
         self.backoff_base = backoff_base
+        self.max_wait_seconds = max_wait_seconds
+        """A server-requested wait longer than this is a quota, not a burst."""
         self._sleep = sleep
 
         if client is not None:
@@ -142,6 +147,7 @@ class GeminiProvider:
         contents = self._contents(request)
         attempts = 0
         failures: list[str] = []
+        exhausted: dict[str, float] = {}
         started = time.perf_counter()
 
         for model in self.models:
@@ -156,8 +162,17 @@ class GeminiProvider:
                     if not self._is_retryable(exc):
                         raise LLMBadRequest(f"{model}: {exc}") from exc
                     failures.append(f"{model}#{attempt + 1}: {code or type(exc).__name__}")
+
+                    delay = retry_delay_of(exc)
+                    if code == 429 and delay is not None and delay > self.max_wait_seconds:
+                        # A quota, not a burst. The server says when it resets;
+                        # hammering the same model until then only wastes
+                        # attempts. Quotas are per model, so the next one may
+                        # still have room.
+                        exhausted[model] = delay
+                        break
                     if attempt + 1 < self.max_attempts:
-                        self._sleep(self.backoff_base**attempt)
+                        self._sleep(delay if delay is not None else self.backoff_base**attempt)
                     continue
 
                 usage_meta = getattr(raw, "usage_metadata", None)
@@ -182,6 +197,39 @@ class GeminiProvider:
                     )
                 return response
 
-        raise LLMUnavailable(
-            f"all models exhausted after {attempts} attempts: " + ", ".join(failures)
-        )
+        summary = f"all models exhausted after {attempts} attempts: " + ", ".join(failures)
+        if exhausted and set(exhausted) == set(self.models):
+            raise LLMQuotaExhausted(summary, resets_in=min(exhausted.values()))
+        raise LLMUnavailable(summary)
+
+
+def retry_delay_of(exc: Exception) -> float | None:
+    """Seconds the server asked us to wait, from RetryInfo or the message.
+
+    A 429 carries either a short delay (a per-minute burst) or a very long one
+    (a daily quota: "retry in 20h25m", retryDelay "73502s"). The two need
+    opposite handling, so the number matters more than the status code.
+    """
+
+    def search(node: object) -> str | None:
+        if isinstance(node, dict):
+            if isinstance(node.get("retryDelay"), str):
+                return node["retryDelay"]
+            for value in node.values():
+                if (found := search(value)) is not None:
+                    return found
+        elif isinstance(node, list):
+            for value in node:
+                if (found := search(value)) is not None:
+                    return found
+        return None
+
+    raw = search(getattr(exc, "details", None))
+    if raw and (match := re.fullmatch(r"([\d.]+)s", raw.strip())):
+        return float(match.group(1))
+
+    message = str(exc)
+    if match := re.search(r"retry in (?:(\d+)h)?(?:(\d+)m)?([\d.]+)s", message):
+        hours, minutes, seconds = match.groups()
+        return int(hours or 0) * 3600 + int(minutes or 0) * 60 + float(seconds)
+    return None

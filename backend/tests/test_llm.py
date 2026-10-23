@@ -12,18 +12,28 @@ from cutpilot.agent.llm import (
     FakeProvider,
     LLMBadOutput,
     LLMBadRequest,
+    LLMQuotaExhausted,
     LLMRequest,
     LLMUnavailable,
     generate_structured,
 )
-from cutpilot.agent.llm.gemini import GeminiProvider
+from cutpilot.agent.llm.gemini import GeminiProvider, retry_delay_of
 from cutpilot.core.cache import ResponseCache
 
 
 class StubAPIError(Exception):
-    def __init__(self, code: int) -> None:
+    def __init__(self, code: int, retry: str | None = None) -> None:
         super().__init__(f"HTTP {code}")
         self.code = code
+        self.details = (
+            {"error": {"details": [{"@type": "RetryInfo", "retryDelay": retry}]}} if retry else None
+        )
+
+
+DAILY_QUOTA = StubAPIError(429, retry="73502s")
+"""What the free tier actually returned on 2026-10-23: 20 requests per model
+per day, reset in about 20 hours."""
+BURST = StubAPIError(429, retry="4s")
 
 
 class StubClient:
@@ -37,6 +47,8 @@ class StubClient:
     def _generate(self, *, model, contents, config):
         self.calls.append(model)
         outcome = self.script[model].pop(0)
+        if isinstance(outcome, Exception):
+            raise outcome
         if isinstance(outcome, int):
             raise StubAPIError(outcome)
         return SimpleNamespace(
@@ -106,6 +118,47 @@ class TestRetryPolicy:
             "unused", ["primary"], client=client, sleep=waits.append, backoff_base=2.0
         ).generate(REQUEST)
         assert waits == [1.0, 2.0]
+
+
+class TestQuota:
+    def test_daily_quota_skips_straight_to_the_fallback(self):
+        """Retrying a model whose quota resets in 20 hours wastes attempts."""
+        provider, client = _provider({"primary": [DAILY_QUOTA, "never"], "fallback": ["ok"]})
+        response = provider.generate(REQUEST)
+        assert response.model == "fallback"
+        assert client.calls == ["primary", "fallback"]
+
+    def test_every_model_out_of_quota_says_when_it_resets(self):
+        provider, _ = _provider({"primary": [DAILY_QUOTA], "fallback": [DAILY_QUOTA]})
+        with pytest.raises(LLMQuotaExhausted) as info:
+            provider.generate(REQUEST)
+        assert info.value.resets_in_hours == pytest.approx(20.4, abs=0.1)
+
+    def test_a_short_burst_limit_waits_as_told_and_retries(self):
+        waits: list[float] = []
+        client = StubClient({"primary": [BURST, "ok"]})
+        provider = GeminiProvider("unused", ["primary"], client=client, sleep=waits.append)
+        assert provider.generate(REQUEST).text == "ok"
+        assert waits == [4.0]
+
+    def test_quota_and_overload_mixed_is_still_unavailable(self):
+        provider, _ = _provider({"primary": [DAILY_QUOTA], "fallback": [503, 503, 503]})
+        with pytest.raises(LLMUnavailable) as info:
+            provider.generate(REQUEST)
+        assert not isinstance(info.value, LLMQuotaExhausted)
+
+
+class TestRetryDelay:
+    def test_reads_retry_info(self):
+        assert retry_delay_of(DAILY_QUOTA) == 73502.0
+
+    def test_falls_back_to_the_message(self):
+        assert retry_delay_of(Exception("Please retry in 20h25m2.85s.")) == pytest.approx(
+            20 * 3600 + 25 * 60 + 2.85
+        )
+
+    def test_none_when_absent(self):
+        assert retry_delay_of(Exception("boom")) is None
 
 
 class TestCache:

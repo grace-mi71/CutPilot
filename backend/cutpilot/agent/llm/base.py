@@ -29,6 +29,20 @@ class LLMUnavailable(LLMError):
     """
 
 
+class LLMQuotaExhausted(LLMUnavailable):
+    """Every model hit its quota. Unlike an overload, waiting a minute will not
+    help -- the free tier allows 20 requests per model per day -- so the user
+    should be told when it resets rather than invited to retry."""
+
+    def __init__(self, message: str, resets_in: float) -> None:
+        super().__init__(message)
+        self.resets_in = resets_in
+
+    @property
+    def resets_in_hours(self) -> float:
+        return self.resets_in / 3600
+
+
 class LLMBadRequest(LLMError):
     """The request itself was rejected. Retrying will not help."""
 
