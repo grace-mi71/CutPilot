@@ -82,7 +82,9 @@ def is_complement(phrase: str) -> bool:
 def _clean_phrases(phrases: list[str]) -> list[str]:
     seen: list[str] = []
     for phrase in phrases:
-        text = phrase.strip()
+        # A leading "?" is the grounder's unresolved marker; the phrase is what
+        # it stood for, never part of a name.
+        text = phrase.strip().lstrip("?").strip()
         text = track_id_of(text) or text
         if text and text not in seen:
             seen.append(text)
