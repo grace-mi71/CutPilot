@@ -1,0 +1,1 @@
+export default function EditorHeader() { return <header className="header"><strong className="logo">CutPilot</strong><span className="project-title">인터뷰 영상 편집</span><button className="button" disabled title="렌더링 연결 후 사용할 수 있어요">↥ &nbsp; 내보내기</button></header>; }
