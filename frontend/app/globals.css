@@ -82,6 +82,13 @@ th, td, .message { font-size: 13px; }
 }
 .editor { background: #fcfaf8; }
 .chat { border-left: 1px solid #e9e3de; }
+.project-title { min-width: 0; max-width: min(45vw, 360px); color: #17223b; }
+.project-title-button { display: flex; align-items: center; gap: 6px; padding: 5px 8px; border: 1px solid transparent; border-radius: 6px; background: transparent; }
+.project-title-button span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.project-title-button:hover { border-color: #e4d5cb; background: #fcf7f3; }
+.title-edit-icon { color: #a77357; flex: 0 0 auto; }
+.project-title-input { width: min(45vw, 360px); padding: 5px 8px; border: 1px solid #c96d32; border-radius: 6px; background: #fff; font: inherit; font-size: 14px; font-weight: 700; }
+.project-title-button:focus-visible, .project-title-input:focus-visible { outline: 2px solid #c96d32; outline-offset: 2px; }
 .video-wrapper { width: min(100%, 90dvh, 1020px); }
 .editor-complete .video-wrapper { width: min(100%, 108dvh, 1100px); }
 .editor-complete .work-list { flex: 1 1 0; }
@@ -100,6 +107,8 @@ th, td, .message { font-size: 13px; }
 @media (prefers-reduced-motion: reduce) { .selection-message { transition: none; } }
 @media (max-width: 800px) {
   .workspace { gap: 8px; padding: 8px; }
+  .project-title { display: flex; }
+  .project-title-input { display: block; }
   .video-wrapper { width: min(100%, 46dvh, 1020px); }
   .editor-complete .video-wrapper { width: min(100%, 48dvh, 1100px); }
 }
