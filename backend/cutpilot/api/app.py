@@ -44,6 +44,7 @@ from cutpilot.api.models import (
     TurnOut,
     VideoOut,
 )
+from cutpilot.api.offline_demo import create_offline_demo_router
 from cutpilot.api.store import (
     Analyzer,
     Library,
@@ -73,6 +74,7 @@ def create_app(
     sessions = Sessions(provider_factory or (lambda: provider_from_settings(settings)))
 
     app = FastAPI(title="CutPilot", version="0.1.0")
+    app.include_router(create_offline_demo_router())
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,

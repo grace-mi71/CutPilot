@@ -11,7 +11,7 @@ export default function WorkList({ works, onAdd, onRemove, readOnly }: Props) {
   return (
     <section className="work-list">
       <div className="work-heading">
-        <div><h2>작업 리스트</h2><p className="hint">아래는 수행할 작업 목록입니다.</p></div>
+        <div><h2>작업 리스트</h2><p className="hint">채팅에서 확인한 작업을 표시합니다.</p></div>
         {!readOnly && <button className="button" onClick={onAdd}>＋ &nbsp; 추가하기</button>}
       </div>
       <div className="work-scroll" tabIndex={0} role="region" aria-label="작업 목록">

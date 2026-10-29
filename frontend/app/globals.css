@@ -102,6 +102,9 @@ th, td, .message { font-size: 13px; }
 .selection-message span { display: inline-block; padding: 10px 16px; border-radius: 8px; background: rgba(255, 255, 255, 0.96); color: #17223b; box-shadow: 0 3px 12px rgba(0,0,0,.2); font-size: 13px; font-weight: 700; }
 .selection-message { opacity: 0; transition: opacity 400ms ease; }
 .selection-message.is-visible { opacity: 1; }
+.offline-notice { flex: 0 0 auto; margin: 12px 0 0; padding: 9px 10px; border-radius: 7px; background: #fff5e9; color: #795233; font-size: 12px; line-height: 1.5; }
+.confirm-plan { align-self: flex-start; }
+.message { white-space: pre-wrap; }
 .cancel-selection { margin-left: auto; align-self: center; padding: 5px 9px; border: 1px solid #ded7d1; border-radius: 6px; background: #fff; color: #8b5434; font-size: 12px; }
 .cancel-selection:focus-visible { outline: 2px solid #c96d32; outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) { .selection-message { transition: none; } }

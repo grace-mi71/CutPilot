@@ -25,6 +25,14 @@ CORS는 `http://localhost:3000`이 허용되어 있다 (`CUTPILOT_CORS_ORIGINS`�
 
 ## 흐름
 
+### 영상 없이 오프라인 채팅
+
+`POST /demo/offline-sessions`로 가상 인물 두 명이 있는 세션을 생성하고,
+`POST /demo/offline-sessions/{id}/messages`에 `{"text": "person_02 블러"}`를
+보내면 기존 오프라인 키워드 플래너의 Reply가 돌아온다. 이 세션은 실제
+영상이나 탐지 결과와 무관하며 렌더링할 수 없다. 세션은 메모리에만 저장되므로
+서버가 재시작되면 새로 만들어야 한다. 일반 영상·세션 API와는 별도이다.
+
 ```
 POST /videos                업로드 → 분석 (짧은 영상 기준 수십 초, 동기)
 POST /sessions              대화 시작
