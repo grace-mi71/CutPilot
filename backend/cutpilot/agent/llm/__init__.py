@@ -14,15 +14,18 @@ from cutpilot.agent.llm.base import (
     generate_structured,
 )
 from cutpilot.agent.llm.fake import FakeProvider
+from cutpilot.agent.llm.offline import OfflineProvider
 from cutpilot.core.cache import ResponseCache
 from cutpilot.core.config import Settings, get_settings
 
 
 def provider_from_settings(settings: Settings | None = None) -> LLMProvider:
-    """The configured Gemini provider: primary model, fallbacks, cache."""
+    """The configured provider: Gemini with fallbacks and cache, or offline."""
     from cutpilot.agent.llm.gemini import GeminiProvider
 
     s = settings or get_settings()
+    if s.llm_provider == "offline" or (s.llm_provider == "auto" and not s.has_llm):
+        return OfflineProvider()
     models = [s.gemini_model, *[m for m in s.gemini_fallback_models if m != s.gemini_model]]
     return GeminiProvider(
         s.gemini_api_key,
@@ -44,6 +47,7 @@ __all__ = [
     "LLMBadRequest",
     "LLMBadOutput",
     "FakeProvider",
+    "OfflineProvider",
     "generate_structured",
     "provider_from_settings",
 ]

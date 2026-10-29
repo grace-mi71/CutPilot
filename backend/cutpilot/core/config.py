@@ -30,6 +30,10 @@ class Settings(BaseSettings):
     )
 
     # ---- LLM -------------------------------------------------------------
+    llm_provider: Literal["auto", "gemini", "offline"] = "auto"
+    """auto = Gemini when a key is set, otherwise the offline keyword planner,
+    so the interface can be built and demoed without a key or quota."""
+
     gemini_api_key: str = ""
     gemini_model: str = "gemini-3.6-flash"
     """Pinned deliberately. Bump it as a decision, not as a side effect.
@@ -80,6 +84,11 @@ class Settings(BaseSettings):
     default_mosaic_strength: int = 20
     reframe_smoothing_window: float = 1.0
     """Seconds of trajectory averaged to keep the crop from jittering."""
+
+    # ---- API -------------------------------------------------------------
+    cors_origins: list[str] = Field(
+        default_factory=lambda: ["http://localhost:3000", "http://127.0.0.1:3000"]
+    )
 
     # ---- Paths -----------------------------------------------------------
     data_dir: Path = Field(default=PROJECT_ROOT / "data")
