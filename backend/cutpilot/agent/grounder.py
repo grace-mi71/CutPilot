@@ -110,7 +110,8 @@ def is_unresolved(track_id: str) -> bool:
 # ---------------------------------------------------------------- keyframe
 
 
-def _present(tracks: list[Track], boxes: dict[str, TrackBoxes], kind: ObjectKind, t: float):
+def present_at(tracks: list[Track], boxes: dict[str, TrackBoxes], kind: ObjectKind, t: float):
+    """(track, box) for every object of `kind` on screen at `t`."""
     out = []
     for track in tracks:
         if track.kind != kind or not track.present_at(t):
@@ -138,13 +139,13 @@ def pick_keyframe(
     t = start
     if ui and ui.playhead is not None and start <= ui.playhead < end:
         t = ui.playhead
-    if _present(tracks, boxes, kind, t):
+    if present_at(tracks, boxes, kind, t):
         return t
 
     best_t, best_n = t, 0
     probe = start
     while probe < end:
-        n = len(_present(tracks, boxes, kind, probe))
+        n = len(present_at(tracks, boxes, kind, probe))
         if n > best_n:
             best_t, best_n = probe, n
         probe += SCAN_STEP
@@ -207,7 +208,7 @@ def ground_phrase(
     t = pick_keyframe(
         time_range, duration=duration, kind=target_kind, tracks=tracks, boxes=boxes, ui=ui
     )
-    present = _present(tracks, boxes, target_kind, t)
+    present = present_at(tracks, boxes, target_kind, t)
     all_present = [Candidate(track_id=track.id, score=0.0) for track, _ in present]
 
     result, _ = generate_structured(

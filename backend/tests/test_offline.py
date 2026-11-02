@@ -69,3 +69,14 @@ def test_unknown_request_asks_back():
     result = plan("배경음악 넣어줘")
     assert result == {"operations": [], "clarification": CLARIFY}
     json.dumps(result)
+
+
+def test_numbered_steps_become_operations():
+    ops = plan("1. 가방 멘 사람 모자이크\n2. 5초부터 얼굴 블러\n3. 세로로")["operations"]
+    assert [o["op"] for o in ops] == ["MOSAIC", "BLUR", "REFRAME"]
+    assert ops[1]["time_range"] == {"start": 5.0, "end": None}
+
+
+def test_steps_joined_by_words():
+    ops = plan("person_01 블러 그리고 세로로 바꿔줘")["operations"]
+    assert [o["op"] for o in ops] == ["BLUR", "REFRAME"]

@@ -76,20 +76,32 @@ def session_for(asset, tracks, boxes):  # noqa: F811
     return make
 
 
+def settle(session: EditSession) -> None:
+    """Answer every check the agent raises with its first (default) option."""
+    while (q := session.question) is not None:
+        assert not q.blocking, q.text
+        session.answer(q.id, q.options[0].id)
+
+
 def current_plan_section(prompt: str) -> str:
     match = re.search(r"## 현재 계획.*?\n(.*?)(?:\n## |\Z)", prompt, re.S)
     return match.group(1) if match else ""
 
 
 class TestSaying:
-    def test_clear_instruction_is_ready_to_approve(self, session_for):
+    def test_clear_instruction_asks_once_then_is_ready(self, session_for):
         session = session_for(Model(mosaic("빨간 옷")))
         reply = session.say("빨간 옷 입은 사람 모자이크")
         assert reply.status == "plan"
-        assert reply.can_approve
         assert session.plan.operations[0].selector.include == ["person_02"]
+        assert reply.question.kind == "confirm"
         assert "이 대상이 맞나요" in reply.text
+        assert not reply.can_approve
         assert session.events[-1].llm_calls == 2
+
+        reply = session.say("네")
+        assert reply.can_approve
+        assert reply.spec is not None and "최종 명세서" in reply.text
 
     def test_out_of_scope_request_asks_back(self, session_for):
         session = session_for(Model({"operations": [], "clarification": "자막은 지원하지 않아요."}))
@@ -115,7 +127,8 @@ class TestChoosing:
         session = session_for(Model(mosaic("모자 쓴 사람")))
         session.say("모자 쓴 사람 모자이크")
         reply = session.choose(0, ["person_03"])
-        assert reply.can_approve
+        assert reply.question.kind == "track_gap"  # person_03 is gone 4-6s
+        settle(session)
         assert session.approve().operations[0].selector.include == ["person_03"]
 
     def test_clicking_a_box_answers_the_open_choice(self, session_for):
@@ -165,6 +178,7 @@ class TestUnresolved:
         session = session_for(Model(mosaic("유령")))
         session.say("유령 모자이크")
         session.choose(0, ["person_02"])
+        settle(session)
         assert session.approve().operations[0].selector.include == ["person_02"]
 
 
@@ -208,6 +222,7 @@ class TestClicking:
         session.remove(0)
         assert len(session.plan.operations) == 1
         assert session.plan.operations[0].selector.include == ["person_02"]
+        settle(session)
         assert session.approve()  # the open choice left with its operation
 
     def test_clicks_cost_no_calls_and_reach_the_history(self, session_for):
@@ -216,12 +231,13 @@ class TestClicking:
         session.say("빨간 옷 모자이크")
         session.set_time_range(0, 1.0, 4.0)
         assert len(model.requests) == 2
-        session.say("좋아")
+        session.say("블러로 바꿔")
         assert "[화면 조작] time_range" in model.planner_prompts[1]
 
     def test_any_edit_withdraws_approval(self, session_for):
         session = session_for(Model(mosaic("빨간 옷")))
         session.say("빨간 옷 모자이크")
+        settle(session)
         session.approve()
         session.set_time_range(0, 1.0, 4.0)
         assert session.approved is None
@@ -232,6 +248,7 @@ class TestApproving:
         model = Model(mosaic("빨간 옷"), mosaic("person_02", end=3.0))
         session = session_for(model)
         session.say("빨간 옷 모자이크")
+        settle(session)
         session.approve()
         session.say("그 사람 3초까지만")
         assert "이름: 빨간 옷" in model.planner_prompts[1]

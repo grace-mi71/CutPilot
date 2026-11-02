@@ -1,4 +1,4 @@
-"""The HTTP surface: upload, look, talk, click, approve.
+"""The HTTP surface: upload, give the plan, answer the agent's questions, approve.
 
     uv run uvicorn cutpilot.api.app:app --reload
 
@@ -27,8 +27,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from cutpilot.agent.llm import LLMProvider, provider_from_settings
-from cutpilot.agent.session import ApprovalBlocked, Reply, approval_blockers
+from cutpilot.agent.session import ApprovalBlocked, Reply
 from cutpilot.api.models import (
+    Answer,
     Approve,
     ApproveOut,
     BoxesOut,
@@ -111,10 +112,11 @@ def create_app(
         return entry
 
     def reply_out(reply: Reply) -> ReplyOut:
-        c = reply.confirmation
         return ReplyOut(
-            status=reply.status, text=reply.text, notes=reply.notes, confirmation=c,
-            can_approve=reply.can_approve, blockers=approval_blockers(c) if c else [],
+            status=reply.status, text=reply.text, notes=reply.notes,
+            confirmation=reply.confirmation, question=reply.question,
+            remaining_questions=reply.remaining, spec=reply.spec,
+            can_approve=reply.can_approve, blockers=reply.blockers,
         )  # fmt: skip
 
     def run(session_id: str, action: Callable[[SessionEntry], Reply]) -> ReplyOut:
@@ -131,7 +133,11 @@ def create_app(
 
     @app.get("/health")
     def health() -> dict:
-        return {"ok": True, "llm": settings.llm_provider, "has_key": settings.has_llm}
+        out = {"ok": True, "llm": settings.llm_provider, "has_key": settings.has_llm}
+        summary = getattr(sessions.provider, "summary", None)
+        if callable(summary):
+            out["spend"] = summary()  # estimated USD so far, and the cap
+        return out
 
     # -------------------------------------------------------------- videos
 
@@ -182,12 +188,17 @@ def create_app(
     def session_out(entry: SessionEntry) -> SessionOut:
         s = entry.session
         c = s.confirmation
+        blockers = s.blockers()
         return SessionOut(
             id=entry.id, video_id=entry.video_id,
             provider=getattr(sessions.provider, "model", None) or type(sessions.provider).__name__,
             confirmation=c,
-            can_approve=bool(c) and not approval_blockers(c),
-            blockers=approval_blockers(c) if c else [],
+            question=s.question,
+            questions=[q.question for q in s.open_questions()],
+            spec=s.spec,
+            decisions=list(s.decisions),
+            can_approve=c is not None and not blockers,
+            blockers=blockers if c else [],
             approved=s.approved,
             history=[TurnOut(role=t.role, text=t.text) for t in s.history],
             render=entry.render,
@@ -200,6 +211,10 @@ def create_app(
     @app.post("/sessions/{session_id}/messages", response_model=ReplyOut)
     def send(session_id: str, body: SendMessage) -> ReplyOut:
         return run(session_id, lambda e: e.session.say(body.text, ui=body.ui))
+
+    @app.post("/sessions/{session_id}/questions/{question_id}/answer", response_model=ReplyOut)
+    def answer(session_id: str, question_id: str, body: Answer) -> ReplyOut:
+        return run(session_id, lambda e: e.session.answer(question_id, body.option))
 
     @app.post("/sessions/{session_id}/operations/{index}/choose", response_model=ReplyOut)
     def choose(session_id: str, index: int, body: Choose) -> ReplyOut:

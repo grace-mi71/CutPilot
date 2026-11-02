@@ -5,8 +5,9 @@ a baseline and is never used in evaluation: it reads a handful of keywords and
 gets anything subtle wrong. What it does do is drive every path the frontend
 has to handle -- a plan, a correction, a clarification, and an open choice:
 
-    planner     op / kind / times / ids from keywords; a sentence without an
-                op word edits the current plan instead of replacing it
+    planner     op / kind / times / ids from keywords, one operation per step
+                ("1. ... 2. ...", "그리고"); a sentence without an op word
+                edits the current plan instead of replacing it
     grounding   always finds nobody, so every described target becomes a
                 "which one?" over everyone on screen -- the click path
 """
@@ -69,19 +70,49 @@ def _described(text: str) -> str | None:
     return None
 
 
+STEP_BREAK = re.compile(r"\n|(?:^|\s)\d+[.)]\s*|그리고|그\s?다음(?:에)?|다음으로|,\s*또")
+
+
+def _steps(text: str) -> list[str]:
+    """'1. 얼굴 블러 2. 세로로' -> ['얼굴 블러', '세로로']."""
+    return [p.strip(" ,.") for p in STEP_BREAK.split(text) if p and p.strip(" ,.")]
+
+
+def _new_op(text: str, ui: str) -> dict | None:
+    op = _first(text, OP_WORDS)
+    if op is None:
+        return None
+    ids = TRACK_ID.findall(text)
+    phrase = None if ids else _described(text)
+    targets = ids or ([phrase] if phrase else [])
+    spare = any(w in text for w in SPARE_WORDS)
+    include, exclude = ([], targets) if spare and op != "REFRAME" else (targets, [])
+    return {
+        "op": op,
+        "selector": {
+            "kind": "person" if op == "REFRAME" else _first(text, KIND_WORDS) or "person",
+            "include_phrases": include,
+            "exclude_phrases": exclude,
+        },
+        "time_range": _times(text, ui) or {},
+        "aspect_ratio": ("16:9" if "16:9" in text else "9:16") if op == "REFRAME" else None,
+    }
+
+
 def plan_from_keywords(prompt: str) -> dict:
     text = _section(prompt, "사용자 요청")
     ui = _section(prompt, "UI 상태")
     current_raw = _section(prompt, "현재 계획")
     current = json.loads(current_raw) if current_raw else []
 
+    steps = [op for piece in _steps(text) if (op := _new_op(piece, ui))]
+    if len(steps) > 1:
+        return {"operations": steps}  # a multi-step plan replaces the old one
+
     op = _first(text, OP_WORDS)
     kind = _first(text, KIND_WORDS)
     times = _times(text, ui)
-    ids = TRACK_ID.findall(text)
-    spare = any(w in text for w in SPARE_WORDS)
-    phrase = None if ids else _described(text)
-    names_target = bool(ids or phrase)
+    names_target = bool(TRACK_ID.findall(text) or _described(text))
 
     if current and not names_target:
         # A correction: keep the plan, change only what was said.
@@ -103,25 +134,9 @@ def plan_from_keywords(prompt: str) -> dict:
             )
         return {"operations": operations}
 
-    if op is None:
+    if not steps:
         return {"operations": [], "clarification": CLARIFY}
-
-    targets = ids or ([phrase] if phrase else [])
-    include, exclude = ([], targets) if spare and op != "REFRAME" else (targets, [])
-    return {
-        "operations": [
-            {
-                "op": op,
-                "selector": {
-                    "kind": "person" if op == "REFRAME" else kind or "person",
-                    "include_phrases": include,
-                    "exclude_phrases": exclude,
-                },
-                "time_range": times or {},
-                "aspect_ratio": ("16:9" if "16:9" in text else "9:16") if op == "REFRAME" else None,
-            }
-        ]
-    }
+    return {"operations": steps}
 
 
 class OfflineProvider:

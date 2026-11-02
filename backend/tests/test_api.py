@@ -166,6 +166,27 @@ class TestConversation:
         reply = client.delete(base).json()
         assert reply["confirmation"]["plan"]["operations"] == []
 
+    def test_questions_then_spec(self, client, session):
+        reply = say(client, session, "person_03 모자이크")
+        question = reply["question"]
+        assert question["kind"] == "track_gap" and not reply["can_approve"]
+        assert {o["id"] for o in question["options"]} == {"fill", "leave"}
+
+        response = client.post(
+            f"/sessions/{session}/questions/{question['id']}/answer", json={"option": "fill"}
+        )
+        assert response.status_code == 200, response.text
+        reply = response.json()
+        assert reply["question"] is None and reply["can_approve"]
+        assert reply["spec"]["steps"][0]["targets"] == ["person_03"]
+        state = client.get(f"/sessions/{session}").json()
+        assert state["questions"] == [] and state["decisions"]
+
+    def test_stale_answer_is_404(self, client, session):
+        say(client, session, "person_03 모자이크")
+        response = client.post(f"/sessions/{session}/questions/nope/answer", json={"option": "x"})
+        assert response.status_code == 404
+
     def test_out_of_scope_asks_back(self, client, session):
         assert say(client, session, "자막 넣어줘")["status"] == "clarify"
 

@@ -63,6 +63,17 @@ class Settings(BaseSettings):
 
     llm_seed: int = 7
 
+    llm_budget_usd: float = 30.0
+    """Hard stop on estimated spend, counted across restarts (outputs/.llm_cache/
+    spend.json). 30 USD leaves headroom under a 50-60k KRW ceiling for the
+    estimate being off and for billing lag. Delete the ledger to reset."""
+
+    llm_price_input_per_million: float = 1.50
+    llm_price_output_per_million: float = 7.50
+    """USD per 1M tokens, thinking billed as output. Set high on purpose: the
+    pricing page listed 3.6 Flash at 0.75 / 3.75 until 2026-12-31 and 1.50 /
+    7.50 from 2027. Check it before relying on the numbers."""
+
     # ---- Inference -------------------------------------------------------
     device: Literal["auto", "cuda", "cpu"] = "auto"
     person_model: str = "yolo11n.pt"
