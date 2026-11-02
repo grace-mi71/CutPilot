@@ -13,6 +13,7 @@ from cutpilot.agent.llm.base import (
     LLMUnavailable,
     generate_structured,
 )
+from cutpilot.agent.llm.budget import BudgetGuard, LLMBudgetExceeded
 from cutpilot.agent.llm.fake import FakeProvider
 from cutpilot.agent.llm.offline import OfflineProvider
 from cutpilot.core.cache import ResponseCache
@@ -20,20 +21,28 @@ from cutpilot.core.config import Settings, get_settings
 
 
 def provider_from_settings(settings: Settings | None = None) -> LLMProvider:
-    """The configured provider: Gemini with fallbacks and cache, or offline."""
+    """The configured provider: Gemini with fallbacks, cache and a spending cap,
+    or offline. Cache hits cost nothing and do not count against the cap."""
     from cutpilot.agent.llm.gemini import GeminiProvider
 
     s = settings or get_settings()
     if s.llm_provider == "offline" or (s.llm_provider == "auto" and not s.has_llm):
         return OfflineProvider()
     models = [s.gemini_model, *[m for m in s.gemini_fallback_models if m != s.gemini_model]]
-    return GeminiProvider(
+    gemini = GeminiProvider(
         s.gemini_api_key,
         models,
         cache=ResponseCache(s.cache_dir, enabled=s.llm_cache_enabled),
         timeout_seconds=s.llm_timeout_seconds,
         max_attempts=s.llm_max_attempts,
         seed=s.llm_seed,
+    )
+    return BudgetGuard(
+        gemini,
+        ledger=s.cache_dir / "spend.json",
+        budget_usd=s.llm_budget_usd,
+        input_per_million=s.llm_price_input_per_million,
+        output_per_million=s.llm_price_output_per_million,
     )
 
 
@@ -46,6 +55,8 @@ __all__ = [
     "LLMQuotaExhausted",
     "LLMBadRequest",
     "LLMBadOutput",
+    "LLMBudgetExceeded",
+    "BudgetGuard",
     "FakeProvider",
     "OfflineProvider",
     "generate_structured",

@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field
 
 from cutpilot.schemas.confirm import Confirmation
 from cutpilot.schemas.plan import EditPlan
+from cutpilot.schemas.question import Question, Spec
 from cutpilot.schemas.session import UIContext
 from cutpilot.schemas.track import Box, ObjectKind, Track
 
@@ -73,6 +74,11 @@ class SetTimeRange(BaseModel):
     end: float | None = None
 
 
+class Answer(BaseModel):
+    option: str
+    """One of the question's `options[].id`."""
+
+
 class Approve(BaseModel):
     preview: bool = True
     """True renders the proxy in about a second; False renders at source size."""
@@ -83,6 +89,12 @@ class ReplyOut(BaseModel):
     text: str
     notes: list[str] = Field(default_factory=list)
     confirmation: Confirmation | None = None
+    question: Question | None = None
+    """What the agent is waiting on. Show it, highlight its candidates, seek to
+    `seek_t`. None means nothing is left to ask -- show `spec` instead."""
+    remaining_questions: int = 0
+    spec: Spec | None = None
+    """The final spec: present only when there are no open questions."""
     can_approve: bool = False
     blockers: list[str] = Field(default_factory=list)
     """Why approval is refused right now, in words the user can act on."""
@@ -107,6 +119,11 @@ class SessionOut(BaseModel):
     provider: str
     """'offline-keywords' when no model is attached -- worth showing in the UI."""
     confirmation: Confirmation | None = None
+    question: Question | None = None
+    questions: list[Question] = Field(default_factory=list)
+    """Every open question in the order they will be asked."""
+    spec: Spec | None = None
+    decisions: list[str] = Field(default_factory=list)
     can_approve: bool = False
     blockers: list[str] = Field(default_factory=list)
     approved: EditPlan | None = None

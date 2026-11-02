@@ -17,13 +17,18 @@ uv run uvicorn cutpilot.api.app:app --reload --port 8000
 | | `gemini` | 항상 Gemini |
 
 오프라인 모드는 키워드만 알아듣는다 (`가방 멘 사람 모자이크`, `5초부터 10초까지 얼굴 블러`,
-`person_02 빼고 전부 모자이크`, `세로로`). 외모로 지칭한 대상은 항상 "누구인가요?"(choose)로
+`person_02 빼고 전부 모자이크`, `세로로`). 여러 단계도 된다: `1. 가방 멘 사람 모자이크⏎2. 세로로` (⏎ = 줄바꿈),
+`person_01 블러 그리고 세로로`. 외모로 지칭한 대상은 항상 "누구인가요?"(choose)로
 돌아오므로 후보 선택 UI를 개발하기에 좋다. `GET /sessions/{id}`의 `provider` 값이
 `offline-keywords`이면 화면에 "오프라인 모드" 표시를 권장.
 
 CORS는 `http://localhost:3000`이 허용되어 있다 (`CUTPILOT_CORS_ORIGINS`로 변경).
 
-## 흐름
+## 흐름 — 계획 → 질문에 답하기 → 명세서 → 실행
+
+사용자가 처음에 계획을 준다 (한 문장 또는 "1. … 2. …"처럼 여러 단계). 에이전트는 계획을
+끝까지 해석하면서 **스스로 결정하면 안 되는 것만 하나씩 질문**한다. 질문이 다 끝나면
+**최종 명세서**를 보여주고, 사용자가 승인하면 그대로 렌더링한다.
 
 ### 영상 없이 오프라인 채팅
 
@@ -36,16 +41,24 @@ CORS는 `http://localhost:3000`이 허용되어 있다 (`CUTPILOT_CORS_ORIGINS`�
 ```
 POST /videos                업로드 → 분석 (짧은 영상 기준 수십 초, 동기)
 POST /sessions              대화 시작
-  ┌ POST   .../messages                    채팅 (말로 지시·수정)      → Reply
-  │ POST   .../operations/{i}/choose       후보 중 선택               → Reply
-  │ POST   .../operations/{i}/toggle       미리보기 박스 클릭         → Reply
-  │ PUT    .../operations/{i}/time_range   타임라인 구간 수정         → Reply
-  └ DELETE .../operations/{i}              작업 삭제                  → Reply
+POST .../messages           계획 전달                                     → Reply (question 1)
+  ┌ 질문에 답하는 방법 (아무거나):
+  │ POST   .../questions/{qid}/answer      버튼 답 ("맞아요", "그 구간도 처리") → Reply
+  │ POST   .../operations/{i}/choose       후보 박스 선택                 → Reply
+  │ POST   .../operations/{i}/toggle       미리보기 박스 클릭             → Reply
+  │ POST   .../messages                    채팅으로 답 ("네", "왼쪽 사람")  → Reply
+  │ PUT    .../operations/{i}/time_range   타임라인 구간 수정             → Reply
+  └ DELETE .../operations/{i}              작업 삭제                      → Reply
+  Reply.question == null 이 되면 → Reply.spec (최종 명세서) 표시
 POST /sessions/{id}/approve  승인 → 렌더링 → 결과 영상 URL
 ```
 
-`{i}`는 작업 리스트의 행 번호(0부터). 모든 수정 요청은 같은 모양의 **Reply**를 돌려주므로,
-화면은 매번 Reply 하나로 다시 그리면 된다.
+`{i}`는 작업 리스트의 행 번호(0부터). 모든 요청은 같은 모양의 **Reply**를 돌려주므로,
+화면은 매번 Reply 하나로 다시 그리면 된다. 화면 구성 권장:
+
+- 채팅: `Reply.text` (에이전트 말). `question`이 있으면 그 아래에 `question.options` 버튼.
+- 미리보기: `question.seek_t`로 이동, `question.candidates` 박스 강조.
+- `question`이 없고 `spec`이 있으면: 명세서 카드 + **승인 버튼** (`can_approve`).
 
 ## 엔드포인트
 
@@ -92,8 +105,21 @@ URL은 서버 기준 상대 경로 → `http://localhost:8000` + url.
 ```jsonc
 {
   "status": "plan",            // plan | clarify (되묻기) | error (AI 실패, 계획은 그대로)
-  "text": "이렇게 이해했습니다: ...",   // 채팅에 표시할 문장
+  "text": "이렇게 이해했습니다: ...\n❓ 1번 작업(모자이크): ...",   // 채팅에 표시할 문장
   "notes": [],
+  "question": {                // 지금 기다리는 질문. null이면 질문 끝 → spec 표시
+    "id": "3f9c0a1b2e",        // 답할 때 그대로 보냄
+    "kind": "confirm",         // choose | missing | confirm | track_gap | out_of_frame
+    "operation_index": 0,
+    "text": "1번 작업(모자이크): '빨간 옷'을(를) person_02(사람)(으)로 찾았습니다. 이 대상이 맞나요?",
+    "blocking": false,         // true면 버튼으로 넘길 수 없음 (선택·재설명·삭제만)
+    "options": [{ "id": "yes", "label": "맞아요" }, { "id": "no", "label": "아니에요, 다시 고를게요" }],
+    "candidates": ["person_02"],   // 강조할 박스
+    "track_id": null, "time_range": null,
+    "seek_t": 2.0              // 미리보기를 이 시간으로
+  },
+  "remaining_questions": 2,    // 이 질문 포함 남은 개수
+  "spec": null,                // 질문이 모두 끝나면 최종 명세서 (아래)
   "can_approve": false,        // 승인 버튼 활성화 여부
   "blockers": ["1번 작업: 대상을 골라 주세요 (후보: person_01, ...)."],
   "confirmation": {
@@ -124,6 +150,27 @@ URL은 서버 기준 상대 경로 → `http://localhost:8000` + url.
 }
 ```
 
+질문 종류:
+
+| kind | 언제 | 답하는 법 | 버튼(options) |
+|---|---|---|---|
+| `choose` | 후보가 여럿 / 못 찾음 | 후보 박스 클릭(choose·toggle) 또는 채팅으로 설명 | `remove` |
+| `missing` | 작업 대상이 아무도 없음 | 채팅으로 다시 설명 | `remove` |
+| `confirm` | 에이전트가 한 명 골랐음 | `yes` / `no`(→ choose로 바뀜) / 다른 박스 클릭 | `yes`, `no` |
+| `track_gap` | 대상이 중간에 사라짐 | `fill`(앞뒤 위치를 이어 그 구간도 처리) / `leave` | `fill`, `leave` |
+| `out_of_frame` | 세로 변환으로 대상이 잘림 | `keep` / `remove` | `keep`, `remove` |
+
+채팅으로 "네", "아니요"만 보내도 첫 번째/두 번째 버튼과 같다 (AI 호출 없음).
+그 외 문장("왼쪽 사람이요")은 AI가 질문에 대한 답으로 해석한다.
+
+최종 명세서 (`spec`):
+```jsonc
+{ "steps": [ { "index": 0, "op": "MOSAIC", "label": "모자이크",
+               "targets": ["person_01 (가방 멘 사람)"], "excluded": [], "time": "2.0s ─ 12.0s" } ],
+  "decisions": ["'가방 멘 사람' → person_01", "person_03 4.0~6.0s: 가려진 구간도 이어서 처리"],
+  "text": "최종 명세서\n1. 모자이크 — 사람: person_01 (가방 멘 사람) — 2.0s ─ 12.0s\n..." }
+```
+
 화면 표시 규칙:
 
 | 값 | 의미 | 권장 표시 |
@@ -138,6 +185,12 @@ URL은 서버 기준 상대 경로 → `http://localhost:8000` + url.
 | warning `track_gap` | 대상이 중간에 사라짐 (가려짐이면 그 구간은 처리 안 됨) | 타임라인에 해당 구간 표시 |
 | warning `out_of_frame` | 세로 변환 후 화면 밖이라 효과가 안 보임 | 경고 |
 | warning `empty_selection` | 대상 없음 | 경고, **승인 불가** |
+
+### 질문에 버튼으로 답하기
+```jsonc
+POST /sessions/{id}/questions/{question.id}/answer   { "option": "yes" }   // → Reply
+```
+이미 답했거나 계획이 바뀌어 사라진 질문이면 404.
 
 ### 클릭 수정
 ```jsonc
@@ -158,7 +211,11 @@ toggle 규칙: 대상이 "전체"인 작업에서 클릭 → 제외/제외 해�
 "완료" 탭에서 `render.url`을 재생. 승인 후 수정하면 승인이 풀리므로 다시 승인해야 한다.
 
 ### `GET /sessions/{id}` — 새로고침 복구용
-`confirmation`, `can_approve`, `blockers`, `approved`, `history` (채팅 기록), `render`, `provider`.
+`confirmation`, `question`, `questions` (남은 질문 전부, 순서대로), `spec`, `decisions`,
+`can_approve`, `blockers`, `approved`, `history` (채팅 기록), `render`, `provider`.
+
+### `GET /health`
+Gemini 사용 중이면 `spend: { usd, calls, budget_usd, ... }` — 지금까지 쓴 추정 비용과 상한.
 
 ## 오류
 
@@ -170,6 +227,7 @@ toggle 규칙: 대상이 "전체"인 작업에서 클릭 → 제외/제외 해�
 | 413 | 영상이 너무 김 | `{ "detail": "메시지" }` |
 
 AI 호출 실패는 HTTP 오류가 아니라 `status: "error"`인 Reply로 온다 (계획은 그대로 유지).
+예산 상한에 닿았을 때도 같다 — 클릭과 버튼 답은 AI를 쓰지 않으므로 계속 동작한다.
 
 ## 현재 한계
 - 서버를 재시작하면 세션은 사라진다 (영상 분석 결과는 디스크에 남음).
