@@ -103,3 +103,43 @@ th, td, .message { font-size: 13px; }
   .video-wrapper { width: min(100%, 46dvh, 1020px); }
   .editor-complete .video-wrapper { width: min(100%, 48dvh, 1100px); }
 }
+
+/* ---- Backend connection: boxes on the preview, questions, status, spec ---- */
+.box-layer { position: absolute; pointer-events: none; }
+.track-box { position: absolute; pointer-events: auto; padding: 0; border: 2px solid rgba(255,255,255,.55); border-radius: 4px; background: transparent; }
+.track-box span { position: absolute; left: -2px; top: -20px; padding: 1px 5px; border-radius: 3px; background: rgba(0,0,0,.65); color: #fff; font-size: 11px; white-space: nowrap; }
+.track-box:hover { border-color: #fff; background: rgba(255,255,255,.12); }
+.track-box:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.role-target { border-color: #e6813c; background: rgba(230,129,60,.18); }
+.role-target span { background: #c96d32; }
+.role-candidate { border: 2px dashed #ffd23f; animation: pulse 1.2s ease-in-out infinite; }
+.role-candidate span, .role-asked span { background: #8a6d00; }
+.role-asked { border: 3px solid #ffd23f; background: rgba(255,210,63,.15); }
+.role-excluded { border-color: #9aa3b2; border-style: dotted; }
+.role-reframe_subject { border-color: #4fb0ff; background: rgba(79,176,255,.12); }
+.role-reframe_subject span { background: #1f6fb0; }
+@keyframes pulse { 50% { border-color: rgba(255,210,63,.35); } }
+@media (prefers-reduced-motion: reduce) { .role-candidate { animation: none; } }
+.busy-overlay { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(20,22,28,.45); pointer-events: none; }
+.busy-overlay span { padding: 8px 14px; border-radius: 8px; background: rgba(255,255,255,.95); color: #17223b; font-size: 13px; font-weight: 700; }
+.message { white-space: pre-line; }
+.message-error { background: #fdecea; color: #8a1f11; }
+.message-busy { color: #75829b; font-style: italic; }
+.answer-options { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; align-items: center; }
+.answer-option { padding: 6px 10px; border: 1px solid #c96d32; border-radius: 6px; background: #fff; color: #b85e29; font-size: 12px; font-weight: 700; }
+.answer-option:hover:not(:disabled) { background: #f8e9de; }
+.answer-hint { font-size: 11px; color: #8a90a0; }
+.status { display: inline-block; padding: 2px 7px; border-radius: 10px; font-size: 11px; font-weight: 700; margin-right: 4px; }
+.status-ok { background: #e6f4ea; color: #1e6b34; }
+.status-confirm { background: #fff4d6; color: #7a5a00; }
+.status-choose { background: #fde2d3; color: #9b3d0c; }
+.status-warn { background: #f1f1f4; color: #5b6578; cursor: help; }
+tbody tr { cursor: pointer; }
+.row-selected td { background: #fbf1e9; }
+.avatar { color: #8b5434; font-weight: 700; }
+.spec-card { margin: 12px 0 4px; padding: 12px 14px; border: 1px solid #e8d5c6; border-radius: 10px; background: #fffaf6; font-size: 13px; }
+.spec-card h3 { margin: 0 0 6px; font-size: 14px; }
+.spec-card ol, .spec-card ul { margin: 4px 0 10px; padding-left: 20px; line-height: 1.6; }
+.spec-sub { margin: 6px 0 0; color: #75829b; font-size: 12px; }
+.badge { display: inline-block; margin-left: 8px; padding: 2px 8px; border-radius: 10px; background: #eef0f4; color: #5b6578; font-size: 11px; font-weight: 700; }
+.chat-form textarea { flex: 1; min-width: 0; padding: 9px; border: 1px solid #ded7d1; border-radius: 7px; font: inherit; font-size: 13px; resize: none; line-height: 1.4; }

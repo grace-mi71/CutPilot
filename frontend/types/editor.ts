@@ -1,2 +1,22 @@
-export type WorkItem = { id: number; object: string; time: string; action: string };
-export type Message = { id: number; sender: "assistant" | "user"; text: string };
+import type { ConfirmStatus, Question } from "@/types/api";
+
+/** One row of the work list: one operation of the current plan. */
+export type WorkItem = {
+  index: number;
+  object: string;
+  time: string;
+  action: string;
+  status: ConfirmStatus;
+  warnings: number;
+};
+
+export type Message = {
+  id: number;
+  sender: "assistant" | "user";
+  text: string;
+  /** The question this message asks, so its answer buttons can be shown while it is open. */
+  question?: Question;
+  tone?: "error";
+  /** This message presents the final spec: show the approve button under it while it stands. */
+  spec?: boolean;
+};
