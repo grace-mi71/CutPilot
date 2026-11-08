@@ -67,13 +67,40 @@ backend/cutpilot/
   vision/     detection · tracking · grounding
   agent/      planner + LLM provider abstraction
   editing/    reframe · blur · render
-docs/         project plan and decision records
-frontend/     deferred to Week 9-10
+  eval/       evaluation: tasks, scorer, simulated user
+backend/eval/ labelled task sets (frozen tracks + ground truth)
+docs/         API contract, evaluation, decision records
+frontend/     Next.js editor: preview with clickable boxes, chat, work list, spec
 ```
 
 ## Status
 
-Bootstrapping. See `docs/decisions/` for the reasoning behind the stack.
+Working end to end: upload → plan (one sentence or several steps) → the agent
+asks only what it cannot decide → final spec → approve → render.
+See `docs/api.md` for the API and `docs/evaluation.md` for the first results.
+
+## Run
+
+```bash
+# backend (http://localhost:8000)
+cd backend
+uv run uvicorn cutpilot.api.app:app --port 8000
+
+# frontend (http://localhost:3000; ?mode=text hides the boxes for the user study)
+cd frontend
+npm install
+npm run dev
+```
+
+`backend/.env` holds `CUTPILOT_GEMINI_API_KEY`. Without a key the backend runs an
+offline keyword planner. Spend is capped in code by `CUTPILOT_LLM_BUDGET_USD`
+(estimated from token counts, kept in `outputs/.llm_cache/spend.json`).
+
+```bash
+# evaluation
+cd backend
+uv run python scripts/run_eval.py eval/crowd --max-usd 2
+```
 
 ## Prerequisites
 
