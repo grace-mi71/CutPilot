@@ -70,7 +70,7 @@ def create_app(
     uploads = settings.data_dir / "uploads"
     uploads.mkdir(parents=True, exist_ok=True)
 
-    library = Library(settings.output_dir, analyze or default_analyzer(settings))
+    library = Library(settings.output_dir, analyze or default_analyzer(settings), settings)
     sessions = Sessions(provider_factory or (lambda: provider_from_settings(settings)))
 
     app = FastAPI(title="CutPilot", version="0.1.0")

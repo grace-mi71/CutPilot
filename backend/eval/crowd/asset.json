@@ -1,0 +1,12 @@
+{
+ "id": "crowd-2edf12",
+ "source_path": "samples/15873107_1080_1920_25fps.mp4",
+ "proxy_path": "",
+ "sprite_path": "",
+ "duration": 20.64,
+ "fps": 25.0,
+ "width": 1080,
+ "height": 1920,
+ "sprite_interval": 1.0,
+ "sprite_columns": 20
+}

@@ -159,8 +159,13 @@ def _fmt(t: float) -> str:
 
 
 def track_summary(tracks: list[Track]) -> str:
+    """People, vehicles and anything unattached. A face belongs to its person
+    and is reached through kind "face", so listing it again only doubles the
+    prompt and invites the planner to name face ids."""
     lines = []
     for track in sorted(tracks, key=lambda t: (t.kind, t.id)):
+        if track.parent_id:
+            continue
         spans = ", ".join(f"{_fmt(s.start)}–{_fmt(s.end)}s" for s in track.segments)
         name = f"  이름: {track.display_name}" if track.display_name else ""
         lines.append(f"- {track.id} ({track.kind})  등장 {spans}{name}")

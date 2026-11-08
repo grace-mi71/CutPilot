@@ -46,7 +46,14 @@ from cutpilot.agent.grounder import (
     present_at,
     unresolved_id,
 )
-from cutpilot.agent.llm import LLMError, LLMProvider, LLMQuotaExhausted, LLMRequest, LLMResponse
+from cutpilot.agent.llm import (
+    LLMCreditsExhausted,
+    LLMError,
+    LLMProvider,
+    LLMQuotaExhausted,
+    LLMRequest,
+    LLMResponse,
+)
 from cutpilot.agent.llm.budget import LLMBudgetExceeded
 from cutpilot.agent.planner import Turn, parse_intent, track_id_of
 from cutpilot.agent.questions import OpenQuestion, build_spec, open_questions, shift_acknowledged
@@ -489,9 +496,14 @@ class EditSession:
         op = self._operation(operation_index)
         self._check_known([track_id])
 
-        if op.op == "REFRAME" or self._pending(operation_index, "include"):
+        if self._pending(operation_index, "include"):
             # Pointing at someone while a choice is open answers it.
             return self.choose(operation_index, [track_id])
+        if op.op == "REFRAME":
+            # A reframe follows one person: clicking another switches to them.
+            self._update_selector(operation_index, include=[track_id])
+            self.decisions.append(f"{operation_index + 1}번 작업 기준 인물 → {track_id}")
+            return self._after_click("toggle", f"{operation_index + 1}: {track_id}")
 
         include, exclude = list(op.selector.include), list(op.selector.exclude)
         if not include:  # whole kind: the click spares or un-spares one
@@ -724,6 +736,12 @@ def _error_text(exc: LLMError) -> str:
     if isinstance(exc, LLMBudgetExceeded):
         return (
             f"설정한 AI 사용 예산(${exc.budget:.2f})을 모두 썼습니다. "
+            "화면에서 직접 고치는 건 계속 할 수 있습니다."
+        )
+    if isinstance(exc, LLMCreditsExhausted):
+        return (
+            "AI 사용 크레딧이 소진되었거나 월 지출 상한에 도달했습니다. "
+            "AI Studio에서 충전하거나 상한을 올리면 다시 쓸 수 있습니다. "
             "화면에서 직접 고치는 건 계속 할 수 있습니다."
         )
     if isinstance(exc, LLMQuotaExhausted):

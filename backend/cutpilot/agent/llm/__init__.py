@@ -5,6 +5,7 @@ from __future__ import annotations
 from cutpilot.agent.llm.base import (
     LLMBadOutput,
     LLMBadRequest,
+    LLMCreditsExhausted,
     LLMError,
     LLMProvider,
     LLMQuotaExhausted,
@@ -56,6 +57,7 @@ __all__ = [
     "LLMBadRequest",
     "LLMBadOutput",
     "LLMBudgetExceeded",
+    "LLMCreditsExhausted",
     "BudgetGuard",
     "FakeProvider",
     "OfflineProvider",
