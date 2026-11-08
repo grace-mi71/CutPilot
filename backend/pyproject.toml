@@ -13,7 +13,7 @@ dependencies = [
     "pydantic-settings>=2.6",
 
     # --- vision ---
-    "torch>=2.9",                   # pinned to the CUDA index below
+    "torch>=2.9",                   # CUDA on Windows/Linux; PyPI on macOS
     "torchvision>=0.26",
     "ultralytics>=8.3",             # YOLO detection
     "supervision>=0.25",            # annotators for debug views
@@ -37,7 +37,7 @@ dev = [
 ]
 
 # ---------------------------------------------------------------------------
-# PyTorch must come from the CUDA index, never PyPI.
+# Use CUDA wheels on Windows/Linux and standard PyPI wheels on macOS.
 #
 # The default PyPI torch wheel for Windows is CPU-only, and any build older
 # than CUDA 12.8 lacks sm_120 kernels -- on this machine (RTX 5060 Laptop,
@@ -53,8 +53,8 @@ url = "https://download.pytorch.org/whl/cu130"
 explicit = true
 
 [tool.uv.sources]
-torch = { index = "pytorch-cu130" }
-torchvision = { index = "pytorch-cu130" }
+torch = [{ index = "pytorch-cu130", marker = "sys_platform == 'linux' or sys_platform == 'win32'" }]
+torchvision = [{ index = "pytorch-cu130", marker = "sys_platform == 'linux' or sys_platform == 'win32'" }]
 
 [build-system]
 requires = ["hatchling"]

@@ -2,7 +2,7 @@
 // so the editor redraws from the latest Reply alone.
 import type { Render, Reply, Session, TrackBox, Video } from "@/types/api";
 
-export const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
+export const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000").replace(/\/$/, "");
 
 /** Server paths such as /files/... become absolute URLs. */
 export const fileUrl = (path: string) => `${API_BASE}${path}`;
