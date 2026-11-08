@@ -61,6 +61,14 @@ def default_analyzer(settings: Settings) -> Analyzer:
     return analyze
 
 
+def _with_faces(analysis: TrackingResult, settings: Settings | None) -> TrackingResult:
+    if settings is not None and not settings.estimate_faces:
+        return analysis
+    from cutpilot.vision.heads import with_head_regions
+
+    return with_head_regions(analysis)
+
+
 def new_video_id(filename: str) -> str:
     stem = re.sub(r"[^A-Za-z0-9_-]", "_", Path(filename).stem)[:40] or "video"
     return f"{stem}-{uuid.uuid4().hex[:6]}"
@@ -73,9 +81,12 @@ class VideoEntry:
 
 
 class Library:
-    def __init__(self, output_dir: Path, analyze: Analyzer) -> None:
+    def __init__(
+        self, output_dir: Path, analyze: Analyzer, settings: Settings | None = None
+    ) -> None:
         self.output_dir = output_dir
         self.analyze = analyze
+        self.settings = settings
         self._videos: dict[str, VideoEntry] = {}
 
     def _dir(self, video_id: str) -> Path:
@@ -83,6 +94,7 @@ class Library:
 
     def add(self, source: Path, video_id: str) -> VideoEntry:
         asset, analysis = self.analyze(source, video_id)
+        analysis = _with_faces(analysis, self.settings)
         work = self._dir(asset.id)
         analysis.save(work / "tracks.json")
         (work / "asset.json").write_text(asset.model_dump_json(indent=1), encoding="utf-8")
@@ -99,7 +111,8 @@ class Library:
         asset = VideoAsset.model_validate(
             json.loads((work / "asset.json").read_text(encoding="utf-8"))
         )
-        entry = VideoEntry(asset=asset, analysis=TrackingResult.load(work / "tracks.json"))
+        analysis = _with_faces(TrackingResult.load(work / "tracks.json"), self.settings)
+        entry = VideoEntry(asset=asset, analysis=analysis)
         self._videos[video_id] = entry
         return entry
 

@@ -12,6 +12,7 @@ from cutpilot.agent.llm import (
     FakeProvider,
     LLMBadOutput,
     LLMBadRequest,
+    LLMCreditsExhausted,
     LLMQuotaExhausted,
     LLMRequest,
     LLMUnavailable,
@@ -204,3 +205,22 @@ class TestStructured:
         with pytest.raises(LLMBadOutput) as info:
             generate_structured(FakeProvider(queue=['{"value": "nope"}']), Answer, "q")
         assert "nope" in info.value.raw
+
+
+class SpendCapError(StubAPIError):
+    def __str__(self) -> str:
+        return "429 RESOURCE_EXHAUSTED: Your project has exceeded its monthly spending cap."
+
+
+class TestOutOfCredit:
+    def test_empty_prepaid_balance_stops_without_fallback(self):
+        provider, client = _provider({"primary": [402], "fallback": ["ok"]})
+        with pytest.raises(LLMCreditsExhausted):
+            provider.generate(REQUEST)
+        assert client.calls == ["primary"]  # same account: the fallback cannot pay either
+
+    def test_spend_cap_429_is_money_not_rate(self):
+        provider, client = _provider({"primary": [SpendCapError(429)], "fallback": ["ok"]})
+        with pytest.raises(LLMCreditsExhausted):
+            provider.generate(REQUEST)
+        assert client.calls == ["primary"]

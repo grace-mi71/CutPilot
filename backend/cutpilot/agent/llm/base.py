@@ -43,6 +43,13 @@ class LLMQuotaExhausted(LLMUnavailable):
         return self.resets_in / 3600
 
 
+class LLMCreditsExhausted(LLMError):
+    """The account cannot pay: prepaid credit is used up (402) or the monthly
+    spend cap set in AI Studio was reached (429 naming the cap). Retrying,
+    and falling back to another model on the same account, cannot help --
+    only a top-up or a raised cap will."""
+
+
 class LLMBadRequest(LLMError):
     """The request itself was rejected. Retrying will not help."""
 

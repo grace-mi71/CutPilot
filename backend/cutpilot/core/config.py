@@ -80,6 +80,10 @@ class Settings(BaseSettings):
     face_model: str = "yolo11n-face.pt"
     plate_model: str = "yolo11n-plate.pt"
     detect_confidence: float = 0.35
+    estimate_faces: bool = True
+    """Give every person a face track estimated from the top of their box
+    (vision/heads.py) while no face detector is installed. Without it, any
+    "blur the face" request selects nobody."""
 
     # ---- Ingest ----------------------------------------------------------
     proxy_height: int = 480

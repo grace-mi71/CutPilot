@@ -22,6 +22,7 @@ from collections.abc import Callable, Sequence
 
 from cutpilot.agent.llm.base import (
     LLMBadRequest,
+    LLMCreditsExhausted,
     LLMQuotaExhausted,
     LLMRequest,
     LLMResponse,
@@ -159,6 +160,8 @@ class GeminiProvider:
                     )
                 except Exception as exc:  # noqa: BLE001 - classified below
                     code = self._status_code(exc)
+                    if is_out_of_credit(exc):
+                        raise LLMCreditsExhausted(f"{model}: {exc}") from exc
                     if not self._is_retryable(exc):
                         raise LLMBadRequest(f"{model}: {exc}") from exc
                     failures.append(f"{model}#{attempt + 1}: {code or type(exc).__name__}")
@@ -201,6 +204,18 @@ class GeminiProvider:
         if exhausted and set(exhausted) == set(self.models):
             raise LLMQuotaExhausted(summary, resets_in=min(exhausted.values()))
         raise LLMUnavailable(summary)
+
+
+CREDIT_MARKERS = ("prepayment credits", "credits are depleted", "spending cap", "spend cap")
+
+
+def is_out_of_credit(exc: Exception) -> bool:
+    """402, or a 429 that is about money rather than rate. Prepaid accounts
+    report an empty balance both ways."""
+    code = GeminiProvider._status_code(exc)
+    if code == 402:
+        return True
+    return code == 429 and any(m in str(exc).lower() for m in CREDIT_MARKERS)
 
 
 def retry_delay_of(exc: Exception) -> float | None:

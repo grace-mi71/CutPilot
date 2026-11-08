@@ -1,0 +1,98 @@
+{
+  "name": "crowd",
+  "source": "samples/15873107_1080_1920_25fps.mp4",
+  "labeled_by": "Claude, from annotated frames at 1/5/10/15s (2026-11-08). To be checked by a person before the numbers are reported.",
+  "tasks": [
+    {
+      "id": "L1-01", "level": "L1",
+      "text": "person_04 블러",
+      "expected": [{"op": "BLUR", "targets": ["person_04"]}]
+    },
+    {
+      "id": "L1-02", "level": "L1",
+      "text": "5초부터 10초까지 모든 사람 모자이크",
+      "expected": [{"op": "MOSAIC", "targets": "all", "start": 5.0, "end": 10.0}]
+    },
+    {
+      "id": "L1-03", "level": "L1",
+      "text": "person_01 중심으로 세로 영상 만들어줘",
+      "expected": [{"op": "REFRAME", "targets": ["person_01"], "aspect_ratio": "9:16"}]
+    },
+    {
+      "id": "L2-01", "level": "L2", "playhead": 1.0,
+      "text": "검은 모자 쓴 남자 모자이크",
+      "expected": [{"op": "MOSAIC", "targets": ["person_04"]}]
+    },
+    {
+      "id": "L2-02", "level": "L2", "playhead": 1.0,
+      "text": "빨간 코트 입은 사람 블러",
+      "expected": [{"op": "BLUR", "targets": ["person_08"]}]
+    },
+    {
+      "id": "L2-03", "level": "L2", "playhead": 1.0,
+      "text": "회색 조끼 입은 안경 쓴 남자 모자이크",
+      "expected": [{"op": "MOSAIC", "targets": ["person_02"]}]
+    },
+    {
+      "id": "L2-04", "level": "L2", "playhead": 1.0,
+      "text": "머스타드색 스웨터 입은 할아버지 블러",
+      "expected": [{"op": "BLUR", "targets": ["person_03"]}]
+    },
+    {
+      "id": "L2-05", "level": "L2", "playhead": 10.0,
+      "text": "베이지색 숄 두른 여자 모자이크",
+      "expected": [{"op": "MOSAIC", "targets": ["person_15"]}]
+    },
+    {
+      "id": "L2-06", "level": "L2", "playhead": 15.0,
+      "text": "쇼핑백 여러 개 들고 있는 여자 블러",
+      "expected": [{"op": "BLUR", "targets": ["person_16"]}],
+      "note": "small and far away at the top of the frame"
+    },
+    {
+      "id": "L3-01", "level": "L3", "playhead": 1.0,
+      "text": "오른쪽에 검은 옷 입은 여자 두 명 모자이크",
+      "expected": [{"op": "MOSAIC", "targets": ["person_10", "person_12"]}],
+      "note": "two targets, overlapping boxes"
+    },
+    {
+      "id": "L3-02", "level": "L3", "playhead": 1.0,
+      "text": "검은 모자 쓴 남자 빼고 전부 블러",
+      "expected": [{"op": "BLUR", "targets": "all", "exclude": ["person_04"]}]
+    },
+    {
+      "id": "L3-03", "level": "L3", "playhead": 1.0,
+      "text": "가방 멘 사람 모자이크",
+      "expected": [{"op": "MOSAIC", "targets": ["person_09"]}],
+      "note": "deliberately ambiguous: several people carry bags; the user means the woman in green with the tan shoulder bag"
+    },
+    {
+      "id": "L3-04", "level": "L3", "playhead": 1.0,
+      "text": "흰 히잡 쓴 사람이랑 회색 조끼 남자 블러",
+      "expected": [{"op": "BLUR", "targets": ["person_08", "person_02"]}]
+    },
+    {
+      "id": "L4-01", "level": "L4", "playhead": 1.0,
+      "text": "1. 회색 조끼 남자 3초까지 모자이크\n2. 빨간 코트 입은 사람 블러\n3. 검은 모자 쓴 남자 중심으로 세로로",
+      "expected": [
+        {"op": "MOSAIC", "targets": ["person_02"], "end": 3.0},
+        {"op": "BLUR", "targets": ["person_08"]},
+        {"op": "REFRAME", "targets": ["person_04"], "aspect_ratio": "9:16"}
+      ]
+    },
+    {
+      "id": "L4-02", "level": "L4", "playhead": 10.0,
+      "text": "처음부터 화면에 있던 사람들 모자이크하고, 베이지색 숄 두른 여자 중심으로 세로로 바꿔줘",
+      "expected": [
+        {"op": "MOSAIC", "targets": ["person_01", "person_02", "person_03", "person_04", "person_05", "person_06", "person_07", "person_08", "person_09", "person_10", "person_11", "person_12", "person_13"]},
+        {"op": "REFRAME", "targets": ["person_15"], "aspect_ratio": "9:16"}
+      ],
+      "note": "a reference by time: the planner has to read appearance times from the track list"
+    },
+    {
+      "id": "L4-03", "level": "L4", "playhead": 12.0,
+      "text": "10초 이후에 새로 들어온 사람들 블러",
+      "expected": [{"op": "BLUR", "targets": ["person_16", "person_17"]}]
+    }
+  ]
+}
