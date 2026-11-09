@@ -1,110 +1,176 @@
-# CutPilot
+# 🎬 CutPilot
 
-**Conversational AI Agent for Intent-Based Video Editing**
+**말로 지시하면, AI가 편집 계획을 세우고 — 애매한 것만 물어본 뒤 — 편집해 주는 영상 편집 도구**
 
-> From Tool-Based Video Editing to Intent-Based Video Editing.
+> 도구를 다루는 편집에서, 의도를 말하는 편집으로.
 
-Ajou University · 2026-2 Media Project (졸업작품)
+아주대학교 · 2026-2 미디어프로젝트 (졸업작품)
 
 ---
 
-## What it does
+## 💡 한눈에 보기
 
-Describe the edit you want in plain language. CutPilot turns it into a
-structured, reviewable **Edit Plan**, shows you exactly who and what it selected,
-and only then renders.
-
-```
-User   "검은 옷 입은 남자 중심으로 쇼츠로 만들고, 10초부터 25초까지
-        다른 사람 얼굴이랑 번호판은 가려줘."
-
-Agent   EDIT PLAN
-        Reframe   9:16, follow person_02          00:00 ─ 00:30
-        Blur      faces except person_02          00:10 ─ 00:25
-        Blur      license plates                  00:10 ─ 00:25
-
-User   "왼쪽 여자도 남겨줘."     ← plan updates, nothing rendered yet
-User   "이대로 편집해."          ← now it renders
-```
-
-The timeline highlights each selected object's presence so you can confirm the
-agent picked the right person *before* spending a render.
-
-## Core features
-
-1. **Person-Centered Auto Reframe** — 16:9 → 9:16 tracking a chosen subject
-2. **Face / License Plate Privacy Blur** — detect, track, blur; per-time-range
-3. **Conversational Edit Plan** — declarative plan you revise by talking
-
-## Architecture
-
-The LLM plans; it never touches pixels and never calls editing tools directly.
+"검은 모자 쓴 남자 모자이크해 줘"라고 말하면, CutPilot은 **바로 렌더링하지 않습니다.**
+먼저 누구를, 언제, 어떻게 편집할지 계획을 세우고, **AI 혼자 정하면 안 되는 것만** 하나씩 물어봅니다.
+모든 게 정해지면 최종 명세서를 보여주고, 승인해야 그때 편집합니다.
 
 ```
-natural language ──▶ Agent (Gemini) ──▶ EditPlan (JSON)
-                                            │
-                                    user reviews & edits
-                                            │
-                                            ▼
-                                     local Executor
-                                            │
-                         ┌──────────────────┼──────────────────┐
-                         ▼                  ▼                  ▼
-                  detect / track      auto reframe       blur / mosaic
-                         └──────────────────┼──────────────────┘
-                                            ▼
-                                   FFmpeg ──▶ output video
+👤 사용자   1. 가방 멘 사람 모자이크
+            2. 검은 모자 쓴 남자 중심으로 세로 영상으로 바꿔줘
+
+🤖 CutPilot 이렇게 이해했습니다:
+            1. 모자이크 · 가방 멘 사람 · 전체 구간
+            2. 세로 변환 9:16 · 기준 인물: 검은 모자 쓴 남자
+            ❓ '가방 멘 사람'이 여러 명이에요. 화면에서 골라 주세요.
+
+👤 사용자   (화면에서 그 사람을 클릭)
+
+🤖 CutPilot ❓ '검은 모자 쓴 남자'는 이 사람이 맞나요?      [맞아요] [아니에요]
+
+👤 사용자   맞아요
+
+🤖 CutPilot 📋 최종 명세서
+            1. 모자이크 — person_09 (가방 멘 사람) — 전체 구간
+            2. 세로 변환 9:16 — person_04 (검은 모자 쓴 남자)
+                                                        [승인하고 렌더링]
 ```
 
-## Layout
+### 왜 이렇게 만들었나요?
+
+영상은 렌더링이 오래 걸리고, 결과를 끝까지 봐야 잘못된 걸 알 수 있습니다.
+특히 **얼굴 모자이크는 한 번 틀리면 사고**입니다 (엉뚱한 사람을 가리거나, 가려야 할 사람이 노출됨).
+그래서 CutPilot은 **렌더링 전에** 사용자와 계획을 맞춥니다.
+단, 매번 묻는 대신 **정말 모호할 때만** 묻는 것이 목표입니다.
+
+---
+
+## ✨ 주요 기능
+
+| 기능 | 설명 |
+|---|---|
+| 🗣️ **말로 하는 편집 계획** | 한 문장이든 "1. … 2. …" 여러 단계든 자연어로 지시 |
+| ❓ **필요할 때만 질문** | 후보가 여럿이거나, 대상을 못 찾았거나, 중간에 사라진 경우에만 하나씩 질문 |
+| 🖱️ **클릭으로 답하기** | 일시정지 화면의 사람 박스를 눌러 대상 선택·추가·제외 |
+| 📋 **최종 명세서** | 누가, 무엇을, 언제 — 확인한 내용까지 정리해서 보여주고 승인 후 실행 |
+| 🔒 **모자이크 / 블러** | 사람 전체 또는 얼굴, 구간 지정 가능 |
+| 📱 **세로 영상 변환** | 선택한 사람을 따라가며 9:16으로 잘라내기 |
+| 💰 **AI 비용 상한** | 코드에서 사용 금액을 추적하고 정해진 금액에서 자동 중단 |
+
+---
+
+## 🛠️ 어떻게 동작하나요?
+
+AI(Gemini)는 **계획만 세우고**, 영상을 직접 건드리지 않습니다. 실제 편집은 사용자가 승인한 계획대로 로컬에서 실행됩니다.
 
 ```
-backend/cutpilot/
-  api/        FastAPI routers
-  core/       settings, logging, LLM response cache
-  schemas/    VideoAsset · Track · EditPlan  (backend ↔ UI contract)
-  media/      proxy transcode, thumbnail sprite, probe
-  vision/     detection · tracking · grounding
-  agent/      planner + LLM provider abstraction
-  editing/    reframe · blur · render
-  eval/       evaluation: tasks, scorer, simulated user
-backend/eval/ labelled task sets (frozen tracks + ground truth)
-docs/         API contract, evaluation, decision records
-frontend/     Next.js editor: preview with clickable boxes, chat, work list, spec
+  ① 업로드        영상 → 사람 탐지·추적 (YOLO + ByteTrack)
+        │
+  ② 계획 해석     "가방 멘 사람 모자이크" → 편집 계획 (Gemini)
+        │
+  ③ 대상 찾기     "가방 멘 사람"이 누구인지 → Gemini가 고르고, YOLO 박스로 확정
+        │
+  ④ 질문          AI가 정하면 안 되는 것만 하나씩 질문 ←─┐
+        │                                                │ 답변 (말 또는 클릭)
+        │ ───────────────────────────────────────────────┘
+  ⑤ 명세서        최종 계획 확인 → 승인
+        │
+  ⑥ 렌더링        모자이크·블러·세로 변환 → FFmpeg → 결과 영상
 ```
 
-## Status
+---
 
-Working end to end: upload → plan (one sentence or several steps) → the agent
-asks only what it cannot decide → final spec → approve → render.
-See `docs/api.md` for the API and `docs/evaluation.md` for the first results.
+## 🚀 실행하기
 
-## Run
+### 준비물
+
+- Python 3.10, [uv](https://docs.astral.sh/uv/)
+- Node.js (프론트엔드)
+- [FFmpeg](https://ffmpeg.org/) (`PATH`에 등록)
+- NVIDIA GPU 권장 (없으면 CPU로 동작, 느림)
+
+### 1. 백엔드 (http://localhost:8000)
 
 ```bash
-# backend (http://localhost:8000)
 cd backend
 uv run uvicorn cutpilot.api.app:app --port 8000
+```
 
-# frontend (http://localhost:3000; ?mode=text hides the boxes for the user study)
+`backend/.env` 파일에 Gemini API 키를 넣습니다. **키는 절대 공유하거나 커밋하지 마세요.**
+
+```bash
+CUTPILOT_GEMINI_API_KEY=여기에_키
+CUTPILOT_LLM_BUDGET_USD=18      # AI 사용 금액 상한 (달러)
+```
+
+> 키가 없으면 **오프라인 모드**로 동작합니다. AI 대신 간단한 키워드 규칙으로 해석하므로
+> 무료로 화면을 개발·시연할 수 있습니다 (예: `가방 멘 사람 모자이크`, `5초부터 10초까지 블러`, `세로로`).
+
+### 2. 프론트엔드 (http://localhost:3000)
+
+```bash
 cd frontend
 npm install
 npm run dev
 ```
 
-`backend/.env` holds `CUTPILOT_GEMINI_API_KEY`. Without a key the backend runs an
-offline keyword planner. Spend is capped in code by `CUTPILOT_LLM_BUDGET_USD`
-(estimated from token counts, kept in `outputs/.llm_cache/spend.json`).
+브라우저에서 http://localhost:3000 을 열고 영상을 올린 뒤 채팅으로 지시하면 됩니다.
+
+---
+
+## 📊 평가
+
+같은 AI 응답으로 **"확인 없이 바로 실행"** 과 **"질문에 답하고 실행"** 을 비교합니다.
+가장 중요한 지표는 **가려야 할 사람이 노출된 시간(초)** 입니다.
 
 ```bash
-# evaluation
 cd backend
 uv run python scripts/run_eval.py eval/crowd --max-usd 2
 ```
 
-## Prerequisites
+| | 확인 없이 실행 | 질문에 답하고 실행 |
+|---|---|---|
+| 성공률 (16개 과제) | 94% | **100%** |
+| 불필요했던 질문 | – | 15개 중 14개 |
 
-- Python 3.10
-- [FFmpeg](https://ffmpeg.org/) on `PATH`
-- [uv](https://docs.astral.sh/uv/)
-- NVIDIA GPU recommended (CPU fallback supported)
+👉 AI의 대상 인식은 생각보다 정확했고, 질문이 실제로 도움이 된 건 **정말 모호한 경우**였습니다.
+자세한 결과와 한계는 [`docs/evaluation.md`](docs/evaluation.md)를 보세요.
+
+---
+
+## 📁 폴더 구조
+
+```
+backend/
+  cutpilot/
+    api/        HTTP API (업로드, 대화, 질문 답변, 승인)
+    agent/      계획 해석 · 대상 찾기 · 질문 · 대화 세션
+    vision/     사람 탐지·추적, 얼굴 영역 추정
+    editing/    모자이크 · 블러 · 세로 변환 · 렌더링
+    media/      프록시 영상, 썸네일
+    schemas/    데이터 구조 (백엔드 ↔ 화면 약속)
+    eval/       평가 도구 (과제, 채점, 가상 사용자)
+  eval/         평가용 과제 세트와 정답
+  tests/        자동 테스트
+frontend/       Next.js 편집 화면 (미리보기, 채팅, 작업 리스트, 명세서)
+docs/
+  api.md          화면 ↔ 서버 API 설명
+  evaluation.md   평가 방법과 결과
+  decisions/      기술 선택 기록
+```
+
+---
+
+## 📌 현재 상태와 한계
+
+- ✅ 업로드 → 계획 → 질문 → 명세서 → 승인 → 렌더링까지 전체 흐름 동작
+- ⚠️ **얼굴은 아직 추정**입니다. 사람 박스 윗부분을 얼굴 영역으로 씁니다 (얼굴 검출기 도입 예정).
+- ⚠️ **번호판 처리는 아직 없습니다.**
+- ⚠️ 평가는 영상 1개·과제 16개 규모이고, 정답 라벨은 사람의 검수가 필요합니다.
+- 서버를 재시작하면 대화 내용은 사라집니다 (분석한 영상은 남음).
+- 영상 길이는 최대 180초입니다.
+
+## 📚 더 보기
+
+- [API 설명](docs/api.md) — 화면 개발자용
+- [평가 결과](docs/evaluation.md) — 실험 방법, 결과, 한계
+- [프론트엔드 안내](frontend/README.md)
