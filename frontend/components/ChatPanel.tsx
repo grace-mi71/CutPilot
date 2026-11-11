@@ -27,7 +27,7 @@ export default function ChatPanel({ messages, input, setInput, onSend, disabled,
     <aside className="chat">
       <div className="chat-header">
         <h2>AI 편집 어시스턴트</h2>
-        <span className="demo">● &nbsp; 계획 → 질문 → 명세서 → 실행</span>
+        <span className="demo">계획 → 확인 → 실행</span>
       </div>
       <div className="messages" aria-live="polite">
         {messages.map(message => (
@@ -63,7 +63,7 @@ export default function ChatPanel({ messages, input, setInput, onSend, disabled,
         <textarea value={input} onChange={e => setInput(e.target.value)} disabled={disabled} rows={2}
           onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); onSend(); } }}
           placeholder={disabled && !busy ? "먼저 영상을 올려 주세요" : "편집 계획이나 답을 입력하세요 (Shift+Enter 줄바꿈)"} aria-label="편집 요청" />
-        <button className="button" type="submit" disabled={disabled || !input.trim()}>전송 ↗</button>
+        <button className="button" type="submit" disabled={disabled || !input.trim()}>전송</button>
       </form>
     </aside>
   );

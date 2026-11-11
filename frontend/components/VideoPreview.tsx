@@ -74,8 +74,8 @@ export default function VideoPreview({
   return (
     <>
       <div className="tabs">
-        <button type="button" className={`tab ${view === "original" ? "active" : ""}`} aria-pressed={view === "original"} onClick={() => onViewChange("original")}>▣ &nbsp; 원본</button>
-        <button type="button" className={`tab ${view === "complete" ? "active" : ""}`} aria-pressed={view === "complete"} onClick={() => onViewChange("complete")}>◎ &nbsp; 완료</button>
+        <button type="button" className={`tab ${view === "original" ? "active" : ""}`} aria-pressed={view === "original"} onClick={() => onViewChange("original")}>원본</button>
+        <button type="button" className={`tab ${view === "complete" ? "active" : ""}`} aria-pressed={view === "complete"} onClick={() => onViewChange("complete")}>완료</button>
         {selecting && <button className="cancel-selection" type="button" onClick={onCancelSelection}>선택 취소</button>}
       </div>
       <div className={`video-wrapper ${selecting ? "video-highlight" : ""}`}>

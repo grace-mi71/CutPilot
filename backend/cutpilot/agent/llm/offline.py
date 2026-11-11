@@ -109,6 +109,29 @@ def plan_from_keywords(prompt: str) -> dict:
     if len(steps) > 1:
         return {"operations": steps}  # a multi-step plan replaces the old one
 
+    removing = any(word in text for word in ("대신", "삭제", "지워", "없애", "취소"))
+    changing = steps and steps[0]["op"] != "REFRAME" and any(
+        word in text for word in ("바꾸", "바꿔", "변경", "교체")
+    )
+    if current and len(steps) == 1 and steps[0]["op"] not in {old["op"] for old in current} \
+            and not removing and not changing:
+        kept = [
+            {
+                "op": old["op"],
+                "selector": {
+                    "kind": old["selector"]["kind"],
+                    "include_phrases": old["selector"]["include"],
+                    "exclude_phrases": old["selector"]["exclude"],
+                },
+                "time_range": old["time_range"],
+                "aspect_ratio": old.get("aspect_ratio"),
+                "strength": old.get("strength"),
+                "enabled": old.get("enabled", True),
+            }
+            for old in current
+        ]
+        return {"operations": [*kept, *steps]}
+
     op = _first(text, OP_WORDS)
     kind = _first(text, KIND_WORDS)
     times = _times(text, ui)
@@ -130,6 +153,7 @@ def plan_from_keywords(prompt: str) -> dict:
                     "time_range": times or old["time_range"],
                     "aspect_ratio": old.get("aspect_ratio"),
                     "strength": old.get("strength"),
+                    "enabled": old.get("enabled", True),
                 }
             )
         return {"operations": operations}

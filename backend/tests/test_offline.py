@@ -65,6 +65,24 @@ def test_correction_edits_the_current_plan():
     assert op["time_range"] == {"start": 3.0, "end": 6.0}
 
 
+def test_reframe_after_mosaic_keeps_the_previous_operation():
+    current = EditPlan(
+        video_id="v",
+        operations=[
+            Operation(op="MOSAIC", selector=Selector(kind="person", include=["person_02"]))
+        ],
+    )
+    ops = plan("person_02 중심으로 세로 영상으로 잘라줘", current=current)["operations"]
+    assert [op["op"] for op in ops] == ["MOSAIC", "REFRAME"]
+    assert ops[0]["selector"]["include_phrases"] == ["person_02"]
+    changed = plan("person_02 중심으로 세로로 바꿔줘", current=current)["operations"]
+    assert [op["op"] for op in changed] == [
+        "MOSAIC", "REFRAME"
+    ]
+    unspecified = plan("세로 영상으로 잘라줘", current=current)["operations"]
+    assert [op["op"] for op in unspecified] == ["MOSAIC", "REFRAME"]
+
+
 def test_unknown_request_asks_back():
     result = plan("배경음악 넣어줘")
     assert result == {"operations": [], "clarification": CLARIFY}

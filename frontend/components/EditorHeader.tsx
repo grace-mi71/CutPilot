@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 type Props = {
   provider: string | null;
@@ -13,9 +13,15 @@ export default function EditorHeader({ provider, canExport, onExport, textOnly }
   const [title, setTitle] = useState("영상 편집 1");
   const [draft, setDraft] = useState(title);
   const [editing, setEditing] = useState(false);
+  const cancelEdit = useRef(false);
 
   function saveTitle() {
-    setTitle(draft.trim() || title);
+    if (cancelEdit.current) {
+      setDraft(title);
+      cancelEdit.current = false;
+    } else {
+      setTitle(draft.trim() || title);
+    }
     setEditing(false);
   }
 
@@ -24,29 +30,33 @@ export default function EditorHeader({ provider, canExport, onExport, textOnly }
       <strong className="logo">CutPilot</strong>
       <div className="header-center">
         {editing ? (
-          <input
-            className="project-title project-title-input"
-            aria-label="영상 제목"
-            value={draft}
-            maxLength={80}
-            autoFocus
-            onChange={(event) => setDraft(event.target.value)}
-            onBlur={saveTitle}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && !event.nativeEvent.isComposing) event.currentTarget.blur();
-              if (event.key === "Escape") {
-                setDraft(title);
-                setEditing(false);
-              }
-            }}
-          />
+          <span className="project-title-editor">
+            <span className="project-title-sizer" aria-hidden="true">{draft || "영상 제목"}</span>
+            <input
+              className="project-title project-title-input"
+              aria-label="영상 제목"
+              value={draft}
+              maxLength={80}
+              autoFocus
+              onFocus={event => event.currentTarget.select()}
+              onChange={(event) => setDraft(event.target.value)}
+              onBlur={saveTitle}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && !event.nativeEvent.isComposing) event.currentTarget.blur();
+                if (event.key === "Escape") {
+                  cancelEdit.current = true;
+                  event.currentTarget.blur();
+                }
+              }}
+            />
+          </span>
         ) : (
           <button
             type="button"
             className="project-title project-title-button"
             title="제목 수정"
             aria-label={`영상 제목 수정: ${title}`}
-            onClick={() => { setDraft(title); setEditing(true); }}
+            onClick={() => { cancelEdit.current = false; setDraft(title); setEditing(true); }}
           >
             <span>{title}</span><span className="title-edit-icon" aria-hidden="true">✎</span>
           </button>
@@ -56,7 +66,7 @@ export default function EditorHeader({ provider, canExport, onExport, textOnly }
       </div>
       <button className="button" disabled={!canExport} onClick={onExport}
         title={canExport ? "원본 해상도로 렌더링해 새 탭에서 엽니다" : "질문에 모두 답하면 내보낼 수 있어요"}>
-        ↥ &nbsp; 내보내기
+        내보내기
       </button>
     </header>
   );

@@ -69,6 +69,10 @@ class Toggle(BaseModel):
     track_id: str
 
 
+class SetEnabled(BaseModel):
+    enabled: bool
+
+
 class SetTimeRange(BaseModel):
     start: float | None = None
     end: float | None = None
@@ -97,6 +101,7 @@ class ReplyOut(BaseModel):
     """The final spec: present only when there are no open questions."""
     can_approve: bool = False
     blockers: list[str] = Field(default_factory=list)
+    rendered_indices: list[int] = Field(default_factory=list)
     """Why approval is refused right now, in words the user can act on."""
 
 
@@ -129,8 +134,10 @@ class SessionOut(BaseModel):
     approved: EditPlan | None = None
     history: list[TurnOut] = Field(default_factory=list)
     render: RenderOut | None = None
+    rendered_indices: list[int] = Field(default_factory=list)
 
 
 class ApproveOut(BaseModel):
     plan: EditPlan
     render: RenderOut
+    rendered_indices: list[int] = Field(default_factory=list)

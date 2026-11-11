@@ -139,14 +139,15 @@ def normalize_draft(draft: EditPlanDraft, duration: float) -> tuple[EditPlanDraf
                 time_range=_clamp_time(op.time_range, duration),
                 aspect_ratio=aspect_ratio,
                 strength=strength,
+                enabled=op.enabled,
             )
         )
 
-    reframes = [o for o in operations if o.op == "REFRAME"]
+    reframes = [o for o in operations if o.op == "REFRAME" and o.enabled]
     if len(reframes) > 1:
         notes.append("화면 비율 변환은 하나만 적용할 수 있어 첫 번째만 남겼습니다.")
         first = reframes[0]
-        operations = [o for o in operations if o.op != "REFRAME" or o is first]
+        operations = [o for o in operations if o.op != "REFRAME" or not o.enabled or o is first]
 
     return draft.model_copy(update={"operations": operations}), notes
 

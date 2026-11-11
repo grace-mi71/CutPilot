@@ -58,6 +58,7 @@ export type Operation = {
   time_range: TimeRange;
   aspect_ratio: string | null;
   strength: number | null;
+  enabled: boolean;
 };
 
 export type Confirmation = {
@@ -97,6 +98,7 @@ export type Reply = {
   spec: Spec | null;
   can_approve: boolean;
   blockers: string[];
+  rendered_indices: number[];
 };
 
 export type Render = { url: string; preview: boolean; width: number; height: number; frames: number };
@@ -114,4 +116,5 @@ export type Session = {
   blockers: string[];
   history: { role: string; text: string }[];
   render: Render | null;
+  rendered_indices: number[];
 };

@@ -1,6 +1,8 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import EditorHeader from "./EditorHeader";
+import Onboarding from "./Onboarding";
+import SpecPanel from "./SpecPanel";
 import VideoPreview, { type BoxView } from "./VideoPreview";
 import WorkList from "./WorkList";
 import ChatPanel from "./ChatPanel";
@@ -12,9 +14,9 @@ import type { Message, WorkItem } from "@/types/editor";
 let nextId = 100;
 const newId = () => ++nextId;
 
-function rowsOf(confirmation: Confirmation | null): WorkItem[] {
+function rowsOf(confirmation: Confirmation | null, renderedIndices: number[]): WorkItem[] {
   if (!confirmation) return [];
-  return confirmation.plan.operations.map((_, index) => {
+  return confirmation.plan.operations.map((operation, index) => {
     const items = confirmation.items.filter(item => item.operation_index === index);
     const field = (name: string) => items.find(item => item.field === name);
     return {
@@ -24,6 +26,8 @@ function rowsOf(confirmation: Confirmation | null): WorkItem[] {
       action: field("op")?.label ?? "",
       status: field("selector")?.status ?? "ok",
       warnings: confirmation.warnings.filter(w => w.operation_index === index).length,
+      enabled: operation.enabled,
+      rendered: renderedIndices.includes(index),
     };
   });
 }
@@ -32,6 +36,9 @@ export default function Editor({ textOnly = false }: { textOnly?: boolean }) {
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
+  const [onboardingOpen, setOnboardingOpen] = useState(true);
+  const [onboardingError, setOnboardingError] = useState<string | null>(null);
+  const lastSelectedFile = useRef<File | null>(null);
   const [view, setView] = useState<"original" | "complete">("original");
   const [selectPrompt, setSelectPrompt] = useState(false);
   const [selecting, setSelecting] = useState(false);
@@ -45,6 +52,8 @@ export default function Editor({ textOnly = false }: { textOnly?: boolean }) {
   const [spec, setSpec] = useState<Spec | null>(null);
   const [canApprove, setCanApprove] = useState(false);
   const [render, setRender] = useState<Render | null>(null);
+  const [renderVersion, setRenderVersion] = useState(0);
+  const [renderedIndices, setRenderedIndices] = useState<number[]>([]);
   const [selectedRow, setSelectedRow] = useState(0);
 
   const videoEl = useRef<HTMLVideoElement | null>(null);
@@ -75,7 +84,12 @@ export default function Editor({ textOnly = false }: { textOnly?: boolean }) {
   }
 
   function apply(reply: Reply) {
-    if (reply.confirmation) setConfirmation(reply.confirmation);
+    if (reply.confirmation) {
+      setConfirmation(reply.confirmation);
+      setRender(null);
+      setView("original");
+    }
+    setRenderedIndices(reply.rendered_indices);
     setQuestion(reply.question);
     setSpec(reply.spec);
     setCanApprove(reply.can_approve);
@@ -105,19 +119,34 @@ export default function Editor({ textOnly = false }: { textOnly?: boolean }) {
   }
 
   async function select(file: File) {
-    cancelSelection();
-    setView("original");
-    setConfirmation(null); setQuestion(null); setSpec(null); setCanApprove(false); setRender(null);
-    say("user", `영상 업로드: ${file.name}`);
-    const uploaded = await run("영상 분석 중… (20초 영상 기준 약 20~30초)", () => api.upload(file));
-    if (!uploaded) return;
-    const session = await run("대화 준비 중…", () => api.createSession(uploaded.id));
-    if (!session) return;
-    setVideo(uploaded);
-    setSessionId(session.id);
-    setProvider(session.provider);
-    const people = uploaded.tracks.filter(t => t.kind === "person").length;
-    say("assistant", `분석이 끝났습니다. 사람 ${people}명을 찾았습니다. 편집 계획을 말씀해 주세요.`);
+    if (busy) return;
+    lastSelectedFile.current = file;
+    setOnboardingError(null);
+    setBusy("영상 업로드 및 분석 중… (20초 영상 기준 약 20~30초)");
+    try {
+      const uploaded = await api.upload(file);
+      setBusy("분석 완료 · 대화 준비 중…");
+      const session = await api.createSession(uploaded.id);
+      cancelSelection();
+      setView("original");
+      setConfirmation(null); setQuestion(null); setSpec(null); setCanApprove(false); setRender(null);
+      setRenderVersion(0);
+      setRenderedIndices([]);
+      setBoxes([]);
+      setVideo(uploaded);
+      setOnboardingOpen(false);
+      setSessionId(session.id);
+      setProvider(session.provider);
+      say("user", `영상 업로드: ${file.name}`);
+      const people = uploaded.tracks.filter(t => t.kind === "person").length;
+      say("assistant", `분석이 끝났습니다. 사람 ${people}명을 찾았습니다. 편집 계획을 말씀해 주세요.`);
+    } catch (error) {
+      const message = error instanceof ApiError ? error.message : "알 수 없는 오류가 발생했습니다.";
+      setOnboardingError(message);
+      if (video || !onboardingOpen) say("assistant", `영상 업로드에 실패했습니다. ${message}`, { tone: "error" });
+    } finally {
+      setBusy(null);
+    }
   }
 
   async function send() {
@@ -172,6 +201,41 @@ export default function Editor({ textOnly = false }: { textOnly?: boolean }) {
     if (reply) { apply(reply); setSelectedRow(0); }
   }
 
+  async function setRowEnabled(index: number, enabled: boolean) {
+    if (!sessionId || busy || view !== "complete" || !render) return;
+    setBusy("작업 적용 상태를 바꾸고 다시 렌더링 중…");
+    let reply: Reply | null = null;
+    try {
+      reply = await api.setEnabled(sessionId, index, enabled);
+      if (!reply.can_approve) throw new Error("편집 계획에 확인이 필요합니다. 명세서를 확인해 주세요.");
+      const result = await api.approve(sessionId, true);
+      setConfirmation(reply.confirmation);
+      setQuestion(reply.question);
+      setSpec(reply.spec);
+      setCanApprove(reply.can_approve);
+      setRender(result.render);
+      setRenderedIndices(result.rendered_indices);
+      setRenderVersion(version => version + 1);
+      say("assistant", `${index + 1}번 작업을 ${enabled ? "다시 적용" : "숨김"} 처리한 완료 영상을 만들었습니다.`);
+    } catch (error) {
+      if (reply) {
+        setConfirmation(reply.confirmation);
+        setQuestion(reply.question);
+        setSpec(reply.spec);
+        setCanApprove(reply.can_approve);
+        setRenderedIndices(reply.rendered_indices);
+        setRender(null);
+      }
+      const message = error instanceof Error ? error.message : "다시 렌더링하지 못했습니다.";
+      const nextStep = reply?.can_approve
+        ? " 명세서에서 미리보기 렌더링을 다시 시도해 주세요."
+        : reply ? " 채팅의 확인 질문에 답해 주세요." : "";
+      say("assistant", `${message}${nextStep}`, { tone: "error" });
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function approve(preview: boolean) {
     if (!sessionId || busy) return;
     const result = await run(preview ? "미리보기 렌더링 중…" : "원본 해상도로 렌더링 중…", () =>
@@ -179,6 +243,8 @@ export default function Editor({ textOnly = false }: { textOnly?: boolean }) {
     );
     if (!result) return;
     setRender(result.render);
+    setRenderedIndices(result.rendered_indices);
+    setRenderVersion(version => version + 1);
     if (preview) {
       setView("complete");
       say("assistant", `명세서대로 렌더링했습니다 (${result.render.width}×${result.render.height}). '완료' 탭에서 확인하세요.`);
@@ -227,7 +293,7 @@ export default function Editor({ textOnly = false }: { textOnly?: boolean }) {
       }));
   }, [boxes, confirmation, question, video]);
 
-  const rows = rowsOf(confirmation);
+  const rows = rowsOf(confirmation, renderedIndices);
   const lastQuestionMessage = [...messages].reverse().find(m => m.question)?.id;
   const lastAssistant = [...messages].reverse().find(m => m.sender === "assistant");
   const specMessage = spec && !question && lastAssistant?.spec ? lastAssistant.id : undefined;
@@ -240,11 +306,18 @@ export default function Editor({ textOnly = false }: { textOnly?: boolean }) {
         onExport={() => approve(false)}
         textOnly={textOnly}
       />
-      <div className="workspace">
+      <div className={`workspace ${video ? "workspace-with-spec" : ""}`}>
+        {video && (
+          <SpecPanel
+            spec={spec}
+            canApprove={canApprove && !busy}
+            onApprove={() => approve(true)}
+          />
+        )}
         <div className={`editor ${view === "complete" ? "editor-complete" : ""}`}>
           <VideoPreview
             videoUrl={video ? fileUrl(video.proxy_url) : null}
-            renderUrl={render ? fileUrl(render.url) : null}
+            renderUrl={render ? `${fileUrl(render.url)}?v=${renderVersion}` : null}
             onSelect={select}
             selectPrompt={selectPrompt}
             selecting={selecting}
@@ -262,12 +335,14 @@ export default function Editor({ textOnly = false }: { textOnly?: boolean }) {
             works={rows}
             onAdd={add}
             onRemove={removeRow}
-            readOnly={view === "complete" || !sessionId}
+            onToggleEnabled={setRowEnabled}
+            view={view}
+            hasRender={!!render}
+            readOnly={!sessionId}
+            canAdd={view === "original" && !!sessionId}
+            busy={!!busy}
             selected={selectedRow}
             onSelectRow={setSelectedRow}
-            spec={spec}
-            canApprove={canApprove && !busy}
-            onApprove={() => approve(true)}
             warnings={confirmation?.warnings ?? []}
           />
         </div>
@@ -285,6 +360,16 @@ export default function Editor({ textOnly = false }: { textOnly?: boolean }) {
           onApprove={() => approve(true)}
         />
       </div>
+      {!video && onboardingOpen && (
+        <Onboarding
+          busy={busy}
+          error={onboardingError}
+          canRetry={!!lastSelectedFile.current}
+          onSelect={select}
+          onRetry={() => { if (lastSelectedFile.current) void select(lastSelectedFile.current); }}
+          onClose={() => setOnboardingOpen(false)}
+        />
+      )}
     </main>
   );
 }

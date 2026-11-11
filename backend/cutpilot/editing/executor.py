@@ -120,7 +120,7 @@ def execute(
     # -- resolve each privacy op once, not per frame -----------------------
     privacy: list[tuple[int, Operation, list[Track], int]] = []
     for index, op in enumerate(plan.operations):
-        if not op.is_privacy_op:
+        if not op.enabled or not op.is_privacy_op:
             continue
         targets = resolve_selector(op.selector, tracks)
         strength = effects.clamp_strength(

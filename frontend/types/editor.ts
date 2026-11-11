@@ -8,6 +8,8 @@ export type WorkItem = {
   action: string;
   status: ConfirmStatus;
   warnings: number;
+  enabled: boolean;
+  rendered: boolean;
 };
 
 export type Message = {

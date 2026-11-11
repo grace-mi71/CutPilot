@@ -31,6 +31,7 @@ Two rules are enforced here rather than trusted to the UI:
 
 from __future__ import annotations
 
+from collections import Counter
 from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 from pathlib import Path
@@ -58,7 +59,14 @@ from cutpilot.agent.llm.budget import LLMBudgetExceeded
 from cutpilot.agent.planner import Turn, parse_intent, track_id_of
 from cutpilot.agent.questions import OpenQuestion, build_spec, open_questions, shift_acknowledged
 from cutpilot.schemas.confirm import Confirmation
-from cutpilot.schemas.plan import EditPlan, Operation, TimeRange
+from cutpilot.schemas.plan import (
+    EditPlan,
+    EditPlanDraft,
+    Operation,
+    OperationDraft,
+    SelectorDraft,
+    TimeRange,
+)
 from cutpilot.schemas.question import Question, Spec
 from cutpilot.schemas.session import UIContext
 from cutpilot.schemas.track import Segment, TimedBox, Track, TrackBoxes
@@ -66,8 +74,11 @@ from cutpilot.schemas.video import VideoAsset
 
 ReplyStatus = Literal["plan", "clarify", "error"]
 EventKind = Literal[
-    "say", "answer", "choose", "toggle", "time_range", "remove", "approve", "render"
+    "say", "answer", "choose", "toggle", "enabled", "time_range", "remove", "approve", "render"
 ]
+
+REMOVE_WORDS = ("대신", "삭제", "지워", "없애", "취소", "빼고", "제외")
+CHANGE_WORDS = ("바꾸", "바꿔", "변경", "교체")
 
 GroundingKey = tuple[int, str, str]
 
@@ -93,6 +104,7 @@ class Reply:
     spec: Spec | None = None
     """Set once nothing is left to ask: what approval will render."""
     blockers: list[str] = field(default_factory=list)
+    rendered_indices: list[int] = field(default_factory=list)
 
     @property
     def can_approve(self) -> bool:
@@ -159,8 +171,11 @@ def approval_blockers(confirmation: Confirmation) -> list[str]:
         f"{item.operation_index + 1}번 작업: 대상을 골라 주세요 "
         f"(후보: {', '.join(item.candidates) or '없음'})."
         for item in confirmation.blocking_items
+        if plan.operations[item.operation_index].enabled
     ]
     for index, op in enumerate(plan.operations):
+        if not op.enabled:
+            continue
         for track_id in (*op.selector.include, *op.selector.exclude):
             if is_unresolved(track_id):
                 reasons.append(f"{index + 1}번 작업: '{track_id[1:]}'을(를) 찾지 못했습니다.")
@@ -247,6 +262,7 @@ class EditSession:
         self.history: list[Turn] = []
         self.current: GroundedPlan | None = None
         self.approved: EditPlan | None = None
+        self.rendered_operation_counts: Counter[str] = Counter()
         self.events: list[SessionEvent] = []
         self.acknowledged: set[tuple] = set()
         """Non-blocking questions already answered -- never asked twice."""
@@ -266,6 +282,19 @@ class EditSession:
     @property
     def track_ids(self) -> set[str]:
         return {t.id for t in self.tracks}
+
+    @property
+    def rendered_indices(self) -> list[int]:
+        if self.plan is None:
+            return []
+        remaining = self.rendered_operation_counts.copy()
+        rendered: list[int] = []
+        for index, op in enumerate(self.plan.operations):
+            key = op.model_dump_json()
+            if op.enabled and remaining[key] > 0:
+                rendered.append(index)
+                remaining[key] -= 1
+        return rendered
 
     def open_questions(self) -> list[OpenQuestion]:
         return open_questions(self.current, self.acknowledged)
@@ -316,7 +345,7 @@ class EditSession:
                 history=self.history,
                 thinking_level=self.planner_thinking,
             )
-            draft = planned.draft
+            draft = self._preserve_previous_operations(planned.draft, utterance)
             if draft.clarification and not draft.operations:
                 reply = Reply(status="clarify", text=draft.clarification, notes=planned.notes)
             else:
@@ -555,6 +584,15 @@ class EditSession:
         self.acknowledged = shift_acknowledged(self.acknowledged, operation_index)
         return self._after_click("remove", str(operation_index + 1))
 
+    def set_enabled(self, operation_index: int, enabled: bool) -> Reply:
+        self._operation(operation_index)
+        self._update_operation(operation_index, enabled=enabled)
+        lead = f"{operation_index + 1}번 작업을 {'적용합니다' if enabled else '적용하지 않습니다'}."
+        return self._after_click(
+            "enabled", f"{operation_index + 1}: {'적용' if enabled else '적용 안 함'}",
+            lead=lead,
+        )
+
     # ------------------------------------------------------------ approving
 
     def approve(self) -> EditPlan:
@@ -578,6 +616,9 @@ class EditSession:
         source = Path(self.asset.proxy_path) if preview else Path(self.asset.source_path)
         result = execute(
             self.approved, self.asset, self.tracks, self.boxes, target, source=source, **options
+        )
+        self.rendered_operation_counts = Counter(
+            op.model_dump_json() for op in self.approved.operations if op.enabled
         )
         self._log("render", str(target))
         return result
@@ -615,6 +656,38 @@ class EditSession:
     def _update_selector(self, index: int, **changes) -> None:
         op = self._operation(index)
         self._update_operation(index, selector=op.selector.model_copy(update=changes))
+
+    def _preserve_previous_operations(self, draft: EditPlanDraft, utterance: str) -> EditPlanDraft:
+        """An added operation must not silently discard a different existing edit."""
+        if self.current is None or not draft.operations:
+            return draft
+        previous = self.current.plan.operations
+        new_kinds = {op.op for op in draft.operations}
+        if any(w in utterance for w in REMOVE_WORDS):
+            return draft
+        missing = [op for op in previous if op.op not in new_kinds]
+        if new_kinds != {"REFRAME"} and any(w in utterance for w in CHANGE_WORDS):
+            # "모자이크를 블러로 바꿔" replaces the privacy effect, not a
+            # separate reframe that was already in the plan.
+            missing = [op for op in missing if op.op == "REFRAME"]
+        if not missing:
+            return draft
+        kept = [
+            OperationDraft(
+                op=op.op,
+                selector=SelectorDraft(
+                    kind=op.selector.kind,
+                    include_phrases=list(op.selector.include),
+                    exclude_phrases=list(op.selector.exclude),
+                ),
+                time_range=op.time_range,
+                aspect_ratio=op.aspect_ratio,
+                strength=op.strength,
+                enabled=op.enabled,
+            )
+            for op in missing
+        ]
+        return draft.model_copy(update={"operations": [*kept, *draft.operations]})
 
     def _replace(self, grounded: GroundedPlan) -> None:
         self.current = grounded
@@ -658,6 +731,7 @@ class EditSession:
         return Reply(
             status=status, text=text, confirmation=confirmation, notes=list(notes or []),
             question=question, remaining=len(found), spec=spec, blockers=self.blockers(),
+            rendered_indices=self.rendered_indices,
         )  # fmt: skip
 
     @staticmethod

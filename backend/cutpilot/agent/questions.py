@@ -79,6 +79,8 @@ def open_questions(current: GroundedPlan | None, acknowledged: set[tuple]) -> li
     found: list[OpenQuestion] = []
 
     for index in range(len(plan.operations)):
+        if not plan.operations[index].enabled:
+            continue
         name = _step_name(plan, index)
         own = {k: g for k, g in groundings.items() if k[0] == index}
 
@@ -231,6 +233,8 @@ def build_spec(
     steps: list[SpecStep] = []
     lines = ["최종 명세서"]
     for index, op in enumerate(current.plan.operations):
+        if not op.enabled:
+            continue
         label = OP_LABEL[op.op] + (f" {op.aspect_ratio}" if op.aspect_ratio else "")
         kind = KIND_LABEL.get(op.selector.kind, op.selector.kind)
         targets = [t.id for t in resolve_selector(op.selector, tracks)]
@@ -255,6 +259,9 @@ def build_spec(
             if excluded:
                 who += ", 제외: " + ", ".join(_named(i, names) for i in excluded)
         lines.append(f"{index + 1}. {label} — {who} — {time}")
+
+    if not steps:
+        lines.append("현재 적용할 작업이 없습니다. 렌더링하면 원본 영상이 그대로 나옵니다.")
 
     if decisions:
         lines.append("확인한 내용:")

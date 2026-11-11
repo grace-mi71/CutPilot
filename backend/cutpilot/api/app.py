@@ -39,6 +39,7 @@ from cutpilot.api.models import (
     ReplyOut,
     SendMessage,
     SessionOut,
+    SetEnabled,
     SetTimeRange,
     Toggle,
     TrackBox,
@@ -119,13 +120,17 @@ def create_app(
             confirmation=reply.confirmation, question=reply.question,
             remaining_questions=reply.remaining, spec=reply.spec,
             can_approve=reply.can_approve, blockers=reply.blockers,
+            rendered_indices=reply.rendered_indices,
         )  # fmt: skip
 
     def run(session_id: str, action: Callable[[SessionEntry], Reply]) -> ReplyOut:
         entry = find_session(session_id)
         with entry.lock:
             try:
-                return reply_out(action(entry))
+                reply = action(entry)
+                if entry.session.approved is None:
+                    entry.render = None
+                return reply_out(reply)
             except IndexError as exc:
                 raise HTTPException(404, str(exc)) from exc
             except ValueError as exc:
@@ -204,6 +209,7 @@ def create_app(
             approved=s.approved,
             history=[TurnOut(role=t.role, text=t.text) for t in s.history],
             render=entry.render,
+            rendered_indices=s.rendered_indices,
         )  # fmt: skip
 
     @app.get("/sessions/{session_id}", response_model=SessionOut)
@@ -225,6 +231,10 @@ def create_app(
     @app.post("/sessions/{session_id}/operations/{index}/toggle", response_model=ReplyOut)
     def toggle(session_id: str, index: int, body: Toggle) -> ReplyOut:
         return run(session_id, lambda e: e.session.toggle(index, body.track_id))
+
+    @app.put("/sessions/{session_id}/operations/{index}/enabled", response_model=ReplyOut)
+    def set_enabled(session_id: str, index: int, body: SetEnabled) -> ReplyOut:
+        return run(session_id, lambda e: e.session.set_enabled(index, body.enabled))
 
     @app.put("/sessions/{session_id}/operations/{index}/time_range", response_model=ReplyOut)
     def set_time_range(session_id: str, index: int, body: SetTimeRange) -> ReplyOut:
@@ -257,7 +267,9 @@ def create_app(
                 url=url_of(target), preview=body.preview, width=result.output_width,
                 height=result.output_height, frames=result.frames,
             )  # fmt: skip
-        return ApproveOut(plan=plan, render=entry.render)
+        return ApproveOut(
+            plan=plan, render=entry.render, rendered_indices=entry.session.rendered_indices
+        )
 
     return app
 

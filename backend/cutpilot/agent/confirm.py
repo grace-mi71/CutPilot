@@ -154,6 +154,7 @@ def ground_draft(
                 time_range=op.time_range,
                 aspect_ratio=op.aspect_ratio,
                 strength=op.strength,
+                enabled=op.enabled,
             )
         )
 
@@ -249,6 +250,9 @@ def build_confirmation(
             )
         )
 
+        if not op.enabled:
+            continue
+
         targets = resolve_selector(op.selector, tracks)
         if not targets:
             warnings.append(
@@ -284,7 +288,7 @@ def build_confirmation(
     windows = _reframe_windows(plan, asset, tracks, boxes)
     if windows:
         for index, op in enumerate(plan.operations):
-            if not op.is_privacy_op:
+            if not op.enabled or not op.is_privacy_op:
                 continue
             lo, hi = op.time_range.resolve(asset.duration)
             cropped = 0
@@ -339,6 +343,8 @@ def _overlays(plan, groundings, t, tracks, boxes, by_id) -> list[Overlay]:
             )
 
     for index, op in enumerate(plan.operations):
+        if not op.enabled:
+            continue
         if op.op == "REFRAME":
             for track in resolve_selector(op.selector, tracks):
                 add(track.id, "reframe_subject", index, "세로 변환 기준")

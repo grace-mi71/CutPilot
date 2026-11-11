@@ -263,6 +263,66 @@ class TestApproving:
         with pytest.raises(ApprovalBlocked):
             session_for(Model()).approve()
 
+    def test_reframe_after_render_keeps_mosaic_and_tracks_rendered_steps(
+        self, session_for, tmp_path, monkeypatch
+    ):
+        import cutpilot.editing
+        from cutpilot.editing.executor import RenderResult
+
+        reframe = {
+            "operations": [{
+                "op": "REFRAME",
+                "selector": {"kind": "person", "include_phrases": ["person_02"]},
+                "aspect_ratio": "9:16",
+            }]
+        }
+        changed_reframe = {
+            "operations": [{
+                "op": "REFRAME",
+                "selector": {"kind": "person", "include_phrases": ["person_01"]},
+                "aspect_ratio": "9:16",
+            }]
+        }
+        session = session_for(Model(mosaic("person_02"), reframe, changed_reframe))
+        rendered_plans = []
+
+        def fake_execute(plan, _asset, _tracks, _boxes, target, **_options):
+            rendered_plans.append(plan)
+            return RenderResult(target=target)
+
+        monkeypatch.setattr(cutpilot.editing, "execute", fake_execute)
+        session.say("person_02 모자이크")
+        settle(session)
+        session.approve()
+        session.render(tmp_path / "first.mp4")
+        assert session.rendered_indices == [0]
+
+        reply = session.say("person_02 중심으로 세로 영상으로 잘라줘")
+        assert [op.op for op in reply.confirmation.plan.operations] == ["MOSAIC", "REFRAME"]
+        assert reply.rendered_indices == [0]
+        settle(session)
+        session.approve()
+        session.render(tmp_path / "second.mp4")
+        assert [op.op for op in rendered_plans[-1].operations] == ["MOSAIC", "REFRAME"]
+        assert session.rendered_indices == [0, 1]
+
+        changed = session.say("person_01 중심으로 세로 영상을 다시 만들어줘")
+        assert [op.op for op in changed.confirmation.plan.operations] == ["MOSAIC", "REFRAME"]
+        assert changed.rendered_indices == [0]
+
+    def test_disabled_operation_stays_listed_but_is_not_approved_or_rendered(self, session_for):
+        session = session_for(Model(mosaic("person_02")))
+        session.say("person_02 모자이크")
+        reply = session.set_enabled(0, False)
+        assert len(reply.confirmation.plan.operations) == 1
+        assert not reply.confirmation.plan.operations[0].enabled
+        assert reply.can_approve and reply.spec is not None
+        assert reply.spec.steps == []
+
+        reply = session.set_enabled(0, True)
+        assert reply.confirmation.plan.operations[0].enabled
+        assert reply.can_approve
+
 
 class TestFailures:
     def test_model_failure_keeps_the_plan(self, session_for):

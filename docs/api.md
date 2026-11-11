@@ -46,6 +46,7 @@ POST .../messages           계획 전달                                     �
   │ POST   .../questions/{qid}/answer      버튼 답 ("맞아요", "그 구간도 처리") → Reply
   │ POST   .../operations/{i}/choose       후보 박스 선택                 → Reply
   │ POST   .../operations/{i}/toggle       미리보기 박스 클릭             → Reply
+  │ PUT    .../operations/{i}/enabled      작업 적용 켜기/끄기            → Reply
   │ POST   .../messages                    채팅으로 답 ("네", "왼쪽 사람")  → Reply
   │ PUT    .../operations/{i}/time_range   타임라인 구간 수정             → Reply
   └ DELETE .../operations/{i}              작업 삭제                      → Reply
@@ -121,6 +122,7 @@ URL은 서버 기준 상대 경로 → `http://localhost:8000` + url.
   "remaining_questions": 2,    // 이 질문 포함 남은 개수
   "spec": null,                // 질문이 모두 끝나면 최종 명세서 (아래)
   "can_approve": false,        // 승인 버튼 활성화 여부
+  "rendered_indices": [],      // 마지막 렌더링에 포함된 작업 행 번호
   "blockers": ["1번 작업: 대상을 골라 주세요 (후보: person_01, ...)."],
   "confirmation": {
     "keyframe_t": 2.0,         // 박스를 보여줄 프레임: 미리보기를 이 시간으로 이동
@@ -131,7 +133,7 @@ URL은 서버 기준 상대 경로 → `http://localhost:8000` + url.
                       "exclude": [] },
         "region": "bbox",
         "time_range": { "start": 1.0, "end": 8.0 },   // null = 영상 처음/끝
-        "aspect_ratio": null, "strength": null }
+        "aspect_ratio": null, "strength": null, "enabled": true }
     ]},
     "items": [                 // 작업 리스트 한 행 = 같은 operation_index의 항목 3개
       { "operation_index": 0, "field": "op",         "label": "모자이크",       "status": "ok",     "candidates": [] },
@@ -196,23 +198,27 @@ POST /sessions/{id}/questions/{question.id}/answer   { "option": "yes" }   // �
 ```jsonc
 POST   /sessions/{id}/operations/0/choose      { "track_ids": ["person_02"] }  // 후보 선택 (아무 대상이나 가능)
 POST   /sessions/{id}/operations/0/toggle      { "track_id": "person_04" }     // 박스 클릭: 넣기/빼기
+PUT    /sessions/{id}/operations/0/enabled     { "enabled": false }             // 눈 버튼: 적용 안 함
 PUT    /sessions/{id}/operations/0/time_range  { "start": 2.0, "end": 9.5 }
 DELETE /sessions/{id}/operations/0
 ```
 toggle 규칙: 대상이 "전체"인 작업에서 클릭 → 제외/제외 해제. 대상이 지정된 작업에서 클릭 → 추가/해제.
 선택 대기 중이면 클릭이 곧 선택. 마지막 남은 대상은 해제할 수 없음 (400, 대신 작업 삭제).
+`enabled: false`인 작업은 목록에 남지만 렌더링과 명세서에서는 제외된다. 모든 작업을 꺼도 원본 영상으로 렌더링할 수 있다.
 
 ### `POST /sessions/{id}/approve` — `{ "preview": true }`
 `preview: true`는 프록시 해상도로 1초 내외, `false`는 원본 해상도.
 ```json
 { "plan": { ... }, "render": { "url": "/files/.../renders/05a2_preview.mp4",
-  "preview": true, "width": 270, "height": 480, "frames": 516 } }
+  "preview": true, "width": 270, "height": 480, "frames": 516 },
+  "rendered_indices": [0, 1] }
 ```
-"완료" 탭에서 `render.url`을 재생. 승인 후 수정하면 승인이 풀리므로 다시 승인해야 한다.
+"완료" 탭에서 `render.url`을 재생. 승인 후 수정하면 승인이 풀리고 `render`가 `null`이 되므로 다시 승인해야 한다.
+이전에 렌더링한 작업이 그대로 남아 있으면 `rendered_indices`로 구분할 수 있다.
 
 ### `GET /sessions/{id}` — 새로고침 복구용
 `confirmation`, `question`, `questions` (남은 질문 전부, 순서대로), `spec`, `decisions`,
-`can_approve`, `blockers`, `approved`, `history` (채팅 기록), `render`, `provider`.
+`can_approve`, `blockers`, `approved`, `history` (채팅 기록), `render`, `rendered_indices`, `provider`.
 
 ### `GET /health`
 Gemini 사용 중이면 `spend: { usd, calls, budget_usd, ... }` — 지금까지 쓴 추정 비용과 상한.

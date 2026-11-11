@@ -100,6 +100,7 @@ class Operation(BaseModel):
 
     aspect_ratio: str | None = None  # REFRAME only, e.g. "9:16"
     strength: int | None = None  # BLUR / MOSAIC only
+    enabled: bool = True
 
     @model_validator(mode="after")
     def _check_op_fields(self) -> Operation:
@@ -124,11 +125,11 @@ class EditPlan(BaseModel):
     @property
     def reframe(self) -> Operation | None:
         """At most one reframe applies -- it reshapes the whole output."""
-        return next((op for op in self.operations if op.op == "REFRAME"), None)
+        return next((op for op in self.operations if op.enabled and op.op == "REFRAME"), None)
 
     @property
     def privacy_ops(self) -> list[Operation]:
-        return [op for op in self.operations if op.is_privacy_op]
+        return [op for op in self.operations if op.enabled and op.is_privacy_op]
 
     def referenced_track_ids(self) -> set[str]:
         ids: set[str] = set()
@@ -158,6 +159,7 @@ class OperationDraft(BaseModel):
     time_range: TimeRange = Field(default_factory=TimeRange)
     aspect_ratio: str | None = None
     strength: int | None = None
+    enabled: bool = True
 
 
 class EditPlanDraft(BaseModel):

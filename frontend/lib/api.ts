@@ -68,10 +68,13 @@ export const api = {
   toggle(sessionId: string, index: number, trackId: string) {
     return call<Reply>(`/sessions/${sessionId}/operations/${index}/toggle`, send("POST", { track_id: trackId }));
   },
+  setEnabled(sessionId: string, index: number, enabled: boolean) {
+    return call<Reply>(`/sessions/${sessionId}/operations/${index}/enabled`, send("PUT", { enabled }));
+  },
   remove(sessionId: string, index: number) {
     return call<Reply>(`/sessions/${sessionId}/operations/${index}`, send("DELETE"));
   },
   approve(sessionId: string, preview: boolean) {
-    return call<{ render: Render }>(`/sessions/${sessionId}/approve`, send("POST", { preview }));
+    return call<{ render: Render; rendered_indices: number[] }>(`/sessions/${sessionId}/approve`, send("POST", { preview }));
   },
 };

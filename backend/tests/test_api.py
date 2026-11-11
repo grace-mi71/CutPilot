@@ -146,6 +146,78 @@ class TestConversation:
         assert client.get(render["url"]).status_code == 200
         assert client.get(f"/sessions/{session}").json()["render"]["url"] == render["url"]
 
+    def test_render_then_add_reframe_keeps_mosaic_until_removed(self, client, session, tmp_path):
+        def settle(reply):
+            while reply["question"]:
+                question = reply["question"]
+                assert not question["blocking"], question["text"]
+                reply = client.post(
+                    f"/sessions/{session}/questions/{question['id']}/answer",
+                    json={"option": question["options"][0]["id"]},
+                ).json()
+            return reply
+
+        def first_frame(url, name):
+            path = tmp_path / name
+            path.write_bytes(client.get(url).content)
+            capture = cv2.VideoCapture(str(path))
+            ok, frame = capture.read()
+            capture.release()
+            assert ok
+            return frame
+
+        settle(say(client, session, "person_02 모자이크"))
+        first = client.post(f"/sessions/{session}/approve", json={"preview": True})
+        assert first.status_code == 200, first.text
+        assert first.json()["rendered_indices"] == [0]
+
+        reply = say(client, session, "person_02 중심으로 세로 영상으로 잘라줘")
+        assert [op["op"] for op in reply["confirmation"]["plan"]["operations"]] == [
+            "MOSAIC", "REFRAME"
+        ]
+        assert reply["rendered_indices"] == [0]
+        assert client.get(f"/sessions/{session}").json()["render"] is None
+        settle(reply)
+
+        combined = client.post(f"/sessions/{session}/approve", json={"preview": True})
+        assert combined.status_code == 200, combined.text
+        assert combined.json()["rendered_indices"] == [0, 1]
+        assert combined.json()["render"]["width"] < combined.json()["render"]["height"]
+        with_mosaic = first_frame(combined.json()["render"]["url"], "combined.mp4")
+
+        disabled = client.put(
+            f"/sessions/{session}/operations/0/enabled", json={"enabled": False}
+        )
+        assert disabled.status_code == 200, disabled.text
+        assert not disabled.json()["confirmation"]["plan"]["operations"][0]["enabled"]
+        assert disabled.json()["rendered_indices"] == [1]
+        assert client.get(f"/sessions/{session}").json()["render"] is None
+
+        without = client.post(f"/sessions/{session}/approve", json={"preview": True})
+        assert without.status_code == 200, without.text
+        assert without.json()["rendered_indices"] == [1]
+        without_mosaic = first_frame(without.json()["render"]["url"], "without.mp4")
+        assert with_mosaic.shape == without_mosaic.shape
+        assert np.mean(np.abs(with_mosaic.astype(np.int16) - without_mosaic)) > 2.0
+
+        removed = client.delete(f"/sessions/{session}/operations/0")
+        assert removed.status_code == 200, removed.text
+        assert [op["op"] for op in removed.json()["confirmation"]["plan"]["operations"]] == [
+            "REFRAME"
+        ]
+        assert removed.json()["rendered_indices"] == [0]
+
+    def test_eye_can_render_with_every_operation_disabled(self, client, session):
+        say(client, session, "person_02 모자이크")
+        reply = client.put(
+            f"/sessions/{session}/operations/0/enabled", json={"enabled": False}
+        ).json()
+        assert reply["can_approve"]
+        assert reply["spec"]["steps"] == []
+        rendered = client.post(f"/sessions/{session}/approve", json={"preview": True})
+        assert rendered.status_code == 200, rendered.text
+        assert rendered.json()["rendered_indices"] == []
+
     def test_spoken_correction_keeps_the_rest(self, client, session):
         say(client, session, "person_02 블러")
         reply = say(client, session, "3초부터 6초까지")
