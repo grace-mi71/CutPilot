@@ -171,6 +171,7 @@ docs/
 
 ## 📚 더 보기
 
+- [파이프라인 설계](docs/pipeline.md) — 단계별 동작과 설계 이유 (멘토링용)
 - [API 설명](docs/api.md) — 화면 개발자용
 - [평가 결과](docs/evaluation.md) — 실험 방법, 결과, 한계
 - [프론트엔드 안내](frontend/README.md)
